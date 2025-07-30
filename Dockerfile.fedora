@@ -12,6 +12,8 @@ FROM builder
 
 RUN dnf -y install wget iperf iperf3 nc nftables iptables procps tcpdump hostname iproute net-tools iputils traceroute procps iproute-tc
 
+RUN dnf install -y cri-o1.32 kubernetes1.32 kubernetes1.32-kubeadm kubernetes1.32-client
+
 RUN systemctl set-default multi-user.target
 
 RUN systemctl disable dnf-makecache

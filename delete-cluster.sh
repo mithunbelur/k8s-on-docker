@@ -78,6 +78,7 @@ if docker network inspect $DOCKER_NETWORK >/dev/null 2>&1; then
   docker network rm $DOCKER_NETWORK
 fi
 
-echo "Cleanup completed successfully"
+rm -rf ~/.kube
 
+echo "Cleanup completed successfully"
 

@@ -66,25 +66,25 @@ else
 fi
 
 # Create container for the control plane
-CONTAINER_NAME="ctrl"
-if docker ps -a --format '{{.Names}}' | grep -q "$CONTAINER_NAME"; then
-  echo "Container $CONTAINER_NAME already exists, skipping creation"
+CONTROL_NODE="ctrl"
+if docker ps -a --format '{{.Names}}' | grep -q "$CONTROL_NODE"; then
+  echo "Container $CONTROL_NODE already exists, skipping creation"
 else
-  echo "Creating container $CONTAINER_NAME"
+  echo "Creating container $CONTROL_NODE"
   # Create the control plane container with necessary configurations
-  docker run -it -d --rm --name "$CONTAINER_NAME" \
+  docker run -it -d --rm --name "$CONTROL_NODE" \
     --cap-add=SYS_PTRACE --privileged \
     --network $DOCKER_NETWORK \
-    -v /boot:/boot -v /lib/modules:/lib/modules \
+    -v /boot:/boot -v /lib/modules:/lib/modules -v $(pwd):/root \
     --hostname "ctrl" \
     -e "NODE_NAME=ctrl" \
     -e "CLUSTER_SIZE=$CLUSTER_SIZE" \
     localhost/kubeadm-fedora:v1.0
 
-  ./ovs-docker add-port $BRIDGE $INTF $CONTAINER_NAME --ipaddress=10.10.10.10/24
+  ./ovs-docker add-port $BRIDGE $INTF $CONTROL_NODE --ipaddress=10.10.10.10/24
 
-  docker exec -it $CONTAINER_NAME ip route del default
-  docker exec -it $CONTAINER_NAME ip route add default via 10.10.10.1 dev $INTF
+  docker exec -it $CONTROL_NODE ip route del default
+  docker exec -it $CONTROL_NODE ip route add default via 10.10.10.1 dev $INTF
 fi
 
 # Loop over cluster size and create containers
@@ -96,7 +96,7 @@ for i in $(seq 1 $CLUSTER_SIZE); do
     docker run -it -d --rm --name "$CONTAINER_NAME" \
       --cap-add=SYS_PTRACE --privileged \
       --network $DOCKER_NETWORK \
-      -v /boot:/boot -v /lib/modules:/lib/modules \
+      -v /boot:/boot -v /lib/modules:/lib/modules -v $(pwd):/root \
       --hostname "wkr$i" \
       -e "NODE_NAME=wkr$i" \
       -e "CLUSTER_SIZE=$CLUSTER_SIZE" \
@@ -112,5 +112,18 @@ for i in $(seq 1 $CLUSTER_SIZE); do
   fi
 done
 
+docker exec -it $CONTROL_NODE bash -c "/root/k8s-setup.sh control-plane"
 
+echo "Cluster setup complete. Use the join command from $CONTROL_NODE/join-command.sh to add worker nodes."
+#For worker nodes, run the following command:
+for i in $(seq 1 $CLUSTER_SIZE); do
+  CONTAINER_NAME="wkr$i"
+  docker exec -it $CONTAINER_NAME bash -c "/root/k8s-setup.sh worker-node"
+done
 
+echo "Worker nodes have been configured and joined to the cluster."
+
+#cp -R .kube ~/
+
+echo "You can now use kubectl to manage your cluster."
+echo "Run 'kubectl get nodes' to see the status of your cluster nodes."
