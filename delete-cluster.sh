@@ -2,18 +2,18 @@
 
 CLUSTER_SIZE=$1
 BRIDGE=r1
-VETH_HOST=w1-host
-VETH_OVS=w1-ovs
+VETH_HOST=r1-host
+VETH_OVS=r1-ovs
 INTF=ex0
-DOCKER_NETWORK=opsramp-cluster
+DOCKER_NETWORK=bridge
 
 if [ -z "$CLUSTER_SIZE" ]; then
   echo "Usage: $0 <cluster-size>"
   exit 1
 fi
 
-if [ "$CLUSTER_SIZE" -lt 2 ]; then
-  echo "Cluster size must be at least 2"
+if [ "$CLUSTER_SIZE" -lt 1 ]; then
+  echo "Cluster worker node size must be at least 1"
   exit 1
 fi
 
@@ -73,10 +73,10 @@ if ip link show $VETH_HOST >/dev/null 2>&1; then
 fi
 
 # Delete Docker network
-if docker network inspect $DOCKER_NETWORK >/dev/null 2>&1; then
-  echo "Removing Docker network $DOCKER_NETWORK"
-  docker network rm $DOCKER_NETWORK
-fi
+#if docker network inspect $DOCKER_NETWORK >/dev/null 2>&1; then
+#  echo "Removing Docker network $DOCKER_NETWORK"
+#  docker network rm $DOCKER_NETWORK
+#fi
 
 rm -rf ~/.kube
 

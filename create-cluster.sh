@@ -2,18 +2,18 @@
 
 CLUSTER_SIZE=$1
 BRIDGE=r1
-VETH_HOST=w1-host
-VETH_OVS=w1-ovs
+VETH_HOST=r1-host
+VETH_OVS=r1-ovs
 INTF=ex0
-DOCKER_NETWORK=opsramp-cluster
+DOCKER_NETWORK=bridge
 
 if [ -z "$CLUSTER_SIZE" ]; then
   echo "Usage: $0 <cluster-size>"
   exit 1
 fi
 
-if [ "$CLUSTER_SIZE" -lt 2 ]; then
-  echo "Cluster size must be at least 2"
+if [ "$CLUSTER_SIZE" -lt 1 ]; then
+  echo "Cluster worker node size must be at least 1"
   exit 1
 fi
 
@@ -35,7 +35,7 @@ fi
 
 if ! ip link show $VETH_OVS >/dev/null 2>&1; then
   echo "Creating veth pair $VETH_OVS and $VETH_HOST"
-  ip link add $VETH_OVS type veth peer w1-host
+  ip link add $VETH_OVS type veth peer $VETH_HOST
   ip link set $VETH_OVS up
   ip link set $VETH_HOST up
   ip addr add 10.10.10.1/24 dev $VETH_HOST
@@ -72,7 +72,7 @@ if docker ps -a --format '{{.Names}}' | grep -q "$CONTROL_NODE"; then
 else
   echo "Creating container $CONTROL_NODE"
   # Create the control plane container with necessary configurations
-  docker run -it -d --rm --name "$CONTROL_NODE" \
+  docker run -it -d --rm --name "$CONTROL_NODE" -m 4g \
     --cap-add=SYS_PTRACE --privileged \
     --network $DOCKER_NETWORK \
     -v /boot:/boot -v /lib/modules:/lib/modules -v $(pwd):/root \
@@ -93,7 +93,7 @@ for i in $(seq 1 $CLUSTER_SIZE); do
   CONTAINER_NAME="wkr$i"
   if ! docker ps -a --format '{{.Names}}' | grep -q "$CONTAINER_NAME"; then
     echo "Creating container $CONTAINER_NAME"
-    docker run -it -d --rm --name "$CONTAINER_NAME" \
+    docker run -it -d --rm --name "$CONTAINER_NAME" -m 4g \
       --cap-add=SYS_PTRACE --privileged \
       --network $DOCKER_NETWORK \
       -v /boot:/boot -v /lib/modules:/lib/modules -v $(pwd):/root \
@@ -123,7 +123,10 @@ done
 
 echo "Worker nodes have been configured and joined to the cluster."
 
-#cp -R .kube ~/
+# Copy kubeconfig for local kubectl access
+mkdir -p ~/.kube
+docker exec -it ctrl cat /root/.kube/config > ~/.kube/config 2>/dev/null
+
+echo "Ready! Run: kubectl get nodes"
 
 echo "You can now use kubectl to manage your cluster."
-echo "Run 'kubectl get nodes' to see the status of your cluster nodes."

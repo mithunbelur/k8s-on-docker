@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: target-dep
+  namespace: default
+  labels:
+    app: target-dep
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: target
+  template:
+    metadata:
+      labels:
+        app: target
+    spec:
+      hostNetwork: true
+      containers:
+        - name: target
+          image: "mithunbs/test-tcp-udp-server:1.0"
+          imagePullPolicy: IfNotPresent

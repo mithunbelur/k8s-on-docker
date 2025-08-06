@@ -1,11 +1,16 @@
 #!/bin/bash -x
 
 ROLE=$1
+INTF=ex0
 #Role can be either 'control-plane' or 'worker-node'
 if [ "$ROLE" != "control-plane" ] && [ "$ROLE" != "worker-node" ]; then
   echo "Usage: $0 <control-plane|worker-node>"
   exit 1
 fi
+
+# Get the IP address from $INTF interface
+EX0_IP=$(ip addr show $INTF | grep "inet " | awk '{print $2}' | cut -d'/' -f1)
+echo "Using IP $EX0_IP from $INTF interface for this node"
 
 #Create k8s.conf
 cat <<EOF | sudo tee /etc/modules-load.d/k8s.conf
@@ -31,6 +36,10 @@ sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables ne
 
 systemctl enable --now crio
 
+# Set kubelet to use ex0 IP  
+echo "KUBELET_EXTRA_ARGS=--node-ip=$EX0_IP" > /etc/sysconfig/kubelet
+
+systemctl daemon-reload
 kubeadm config images pull
 
 systemctl enable --now kubelet
@@ -38,10 +47,10 @@ systemctl enable --now kubelet
 # If the role is control-plane, initialize the cluster
 if [ "$ROLE" == "control-plane" ]; then
     echo "Initializing Kubernetes control plane..."
-    kubeadm init --apiserver-advertise-address=10.10.10.10 --pod-network-cidr=10.244.0.0/16 > kubeadm-init.log 2>&1
+    kubeadm init --apiserver-advertise-address=$EX0_IP --pod-network-cidr=10.244.0.0/16 > kubeadm-init.log 2>&1
 
     mkdir -p $HOME/.kube
-    cp -i /etc/kubernetes/admin.conf $HOME/.kube/config
+    cp /etc/kubernetes/admin.conf $HOME/.kube/config
     chown $(id -u):$(id -g) $HOME/.kube/config
     chmod 644 /etc/kubernetes/admin.conf
 
@@ -59,4 +68,3 @@ else
     fi
     bash /root/join-command.sh
 fi
-
