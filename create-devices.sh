@@ -7,11 +7,11 @@ SUBNET=$2 # SUBNET will be in the form of 192.168.1.0/24
 DOCKER_NETWORK_SUFFIX=$3
 DOCKER_NETWORK=client-nw-$DOCKER_NETWORK_SUFFIX
 
-VETH_OVS=w1-ovs
-VETH_HOST=w1-host
+VETH_OVS=cr1-ovs
+VETH_HOST=cr1-host
 INTF=ex0
 
-BRIDGE=r1
+BRIDGE=cr1
 
 if [ -z "$DEVICE_SIZE" ] || [ -z "$SUBNET" ]; then
   echo "Usage: $0 <device-size> <subnet>"
@@ -30,6 +30,15 @@ if ! docker network inspect $DOCKER_NETWORK >/dev/null 2>&1; then
 else
   echo "Docker network $DOCKER_NETWORK already exists"
 fi
+
+# Check if OVS bridge exists, if not create it
+if ! ovs-vsctl br-exists $BRIDGE >/dev/null 2>&1; then
+  echo "Creating OVS bridge $BRIDGE"
+  ovs-vsctl add-br $BRIDGE
+else
+  echo "OVS bridge $BRIDGE already exists"
+fi
+
 
 #Get First IP from the subnet by first converting CIDR to integer and then add 1
 IFS='/' read -r IP PREFIX <<< "$SUBNET"
