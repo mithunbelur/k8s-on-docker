@@ -39,7 +39,6 @@ else
   echo "OVS bridge $BRIDGE already exists"
 fi
 
-
 #Get First IP from the subnet by first converting CIDR to integer and then add 1
 IFS='/' read -r IP PREFIX <<< "$SUBNET"
 IFS='.' read -r -a OCTETS <<< "$IP"
@@ -51,6 +50,11 @@ IP_INT=$((
 FIRST_IP_INT=$(( IP_INT + 1 ))
 FIRST_IP="$(( (${FIRST_IP_INT} >> 24) & 255 )).$(( (${FIRST_IP_INT} >> 16) & 255 )).$(( (${FIRST_IP_INT} >> 8) & 255 )).$(( ${FIRST_IP_INT} & 255 ))"
 echo "First IP in the subnet is $FIRST_IP"
+
+#Get Last IP from the subnet by first converting CIDR to integer
+LAST_IP_INT=$(( IP_INT + (1 << (32 - PREFIX)) - 2 )) # -2 for network and broadcast addresses
+LAST_IP="$(( (${LAST_IP_INT} >> 24) & 255 )).$(( (${LAST_IP_INT} >> 16) & 255 )).$(( (${LAST_IP_INT} >> 8) & 255 )).$(( ${LAST_IP_INT} & 255 ))"
+echo "Last IP in the subnet is $LAST_IP"
 
 if ! ip link show $VETH_OVS >/dev/null 2>&1; then
   echo "Creating veth pair $VETH_OVS and $VETH_HOST"
