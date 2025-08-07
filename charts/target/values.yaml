@@ -1,0 +1,29 @@
+# Default values for target.
+# This is a YAML-formatted file.
+# Declare variables to be passed into your templates.
+# helm template . --set configmap.enabled=true --set replicaCount=1 --set gatewaySubnet.enabled=true --set "subnets={10.1.0.0\/16,10.2.0.0\/16}"
+# helm install opsramp-cloud . -n gateway-ns-1 --create-namespace --set configmap.enabled=true --set replicaCount=1 
+target:
+  image:
+    repository: mithunbs/test-tcp-udp-server
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "1.0"
+dp:
+  image:
+    repository: mithunbs/opsramp-lb
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "v0.0.4"
+
+replicaCount: 1
+
+configmap: 
+  enabled: false
+  firstPort: 18080
+  secondPort: 9090
+
+gatewaySubnet:
+  enabled: false
+
+subnets: []

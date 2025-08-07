@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: target-dep
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app: target-dep
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: target
+  template:
+    metadata:
+      labels:
+        app: target
+    spec:
+      serviceAccountName: target-sa
+      containers:
+        - name: target
+          image: "{{ .Values.target.image.repository }}:{{ .Values.target.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.target.image.pullPolicy }}
+        - name: dp
+          env:
+          - name: NAMESPACE
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.namespace
+          securityContext:
+            privileged: true
+          image: "{{ .Values.dp.image.repository }}:{{ .Values.dp.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.dp.image.pullPolicy }}
+          command:
+            - /scripts/start.sh
+            - cloud-collector-controller
+          volumeMounts:
+            - mountPath: /lib/modules
+              name: lib-ovs-modules
+      volumes:
+        - name: lib-ovs-modules
+          hostPath:
+            path: /lib/modules
+            type: Directory

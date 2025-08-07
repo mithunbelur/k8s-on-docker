@@ -1,0 +1,21 @@
+{{- if eq .Values.configmap.enabled true }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: "target-configmap"
+  namespace: {{ .Release.Namespace }}
+  labels:
+    app.kubernetes.io/configMap: "gateway-lb"
+data:
+  selector: |
+    app: target
+  ports: |
+    - name: first
+      port: {{ .Values.configmap.firstPort }}
+      protocol: TCP
+      targetPort: 8080
+    - name: second
+      port: {{ .Values.configmap.secondPort }}
+      protocol: UDP
+      targetPort: 9090
+{{- end }}
