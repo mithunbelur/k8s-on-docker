@@ -282,6 +282,9 @@ function create_cluster_nodes_in_lan_subnet() {
 
             docker exec -it $CONTAINER_NAME ip route del default
             docker exec -it $CONTAINER_NAME ip route add default via $gw_ip dev $intf
+
+            docker exec -it $CONTAINER_NAME mount --make-shared /
+            docker exec -it $CONTAINER_NAME mount --make-shared /sys
         fi
     done
 }
@@ -323,24 +326,21 @@ function create_gre_tunnel() {
     local k8s_ns=$2
     local cust_wan_ip=$3      # Customer WAN IP (without /30)
     local k8s_wan_ip=$4       # K8s WAN IP (without /30)
-    local tunnel_cust_ip=$5   # Tunnel IP on customer side (with /30)
-    local tunnel_k8s_ip=$6    # Tunnel IP on K8s side (with /30)
-    local special_route=$7    # Special route to add (e.g., 169.254.1.1/32)
-    shift 7
+
+    local special_route=$5    # Special route to add (e.g., 169.254.0.0/16)
+    shift 5
     local cust_subnets=("$@") # Customer subnets to route via tunnel from K8s side
 
     # Create GRE tunnel on customer side
     local gre_cust_name="gre-k8s"
     ip netns exec $cust_ns ip tunnel add $gre_cust_name mode gre local $cust_wan_ip remote $k8s_wan_ip ttl 255
     ip netns exec $cust_ns ip link set $gre_cust_name up
-    ip netns exec $cust_ns ip addr add $tunnel_cust_ip dev $gre_cust_name
     ip netns exec $cust_ns ip route add $special_route dev $gre_cust_name
 
     # Create GRE tunnel on K8s side
     local gre_k8s_name="gre-${cust_ns}"
     ip netns exec $k8s_ns ip tunnel add $gre_k8s_name mode gre local $k8s_wan_ip remote $cust_wan_ip ttl 255
     ip netns exec $k8s_ns ip link set $gre_k8s_name up
-    ip netns exec $k8s_ns ip addr add $tunnel_k8s_ip dev $gre_k8s_name
 
     # Add routes for customer subnets via tunnel on K8s side
     for subnet in "${cust_subnets[@]}"; do

@@ -56,7 +56,11 @@ if [ "$ROLE" == "control-plane" ]; then
 
     sleep 10
 
+    kubectl taint nodes --all node-role.kubernetes.io/control-plane-
+
     kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml
+
+    #kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 
     kubeadm token create --print-join-command > /root/join-command.sh
     chmod +x /root/join-command.sh

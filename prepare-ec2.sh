@@ -16,6 +16,7 @@ sudo apt-get update
 sudo apt-get install -y kubectl
 sudo apt-get install -y openvswitch-switch
 sudo apt-get install -y ipcalc
+sudo apt-get install -y jq
 
 curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3
 chmod 700 get_helm.sh

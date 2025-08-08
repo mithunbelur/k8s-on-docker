@@ -51,6 +51,14 @@ create_edge_router_and_link_to_isp_router $K8S_RTR $ISP_ROUTER $K8S_EDGE_ROUTER_
 create_lan_network_and_link_to_edge_router $K8S_RTR "a" $K8S_SUBNET
 create_cluster_nodes_in_lan_subnet $K8S_RTR "a" $K8S_SUBNET 3
 
+# Need to remove /30 from the IPs for GRE tunnel creation
+C1_EDGE_ROUTER_WAN_IP_1=$(echo $C1_EDGE_ROUTER_WAN_IP | cut -d'/' -f1)
+C2_EDGE_ROUTER_WAN_IP_1=$(echo $C2_EDGE_ROUTER_WAN_IP | cut -d'/' -f1)
+K8S_EDGE_ROUTER_WAN_IP_1=$(echo $K8S_EDGE_ROUTER_WAN_IP | cut -d'/' -f1)
+
+create_gre_tunnel "c1" $K8S_RTR $C1_EDGE_ROUTER_WAN_IP_1 $K8S_EDGE_ROUTER_WAN_IP_1 "169.254.0.0/16" "192.168.11.0/24" "192.168.12.0/24"
+create_gre_tunnel "c2" $K8S_RTR $C2_EDGE_ROUTER_WAN_IP_1 $K8S_EDGE_ROUTER_WAN_IP_1 "169.254.0.0/16" "192.168.21.0/24" "192.168.22.0/24"
+
 CONTROL_NODE=${K8S_RTR}"a1"
 
 docker exec -it $CONTROL_NODE bash -c "/root/k8s-setup.sh control-plane"
@@ -78,14 +86,4 @@ docker exec -it $CONTROL_NODE cat /root/.kube/config > ~/.kube/config 2>/dev/nul
 ip route add $K8S_SUBNET via 10.255.255.1 dev isp-host
 ip netns exec $ISP_ROUTER ip route add $K8S_SUBNET via 10.0.1.1 dev ${K8S_RTR}-wan1
 
-# Step 8: Create GRE tunnel between ovsrtr1 and K8s router
-#create_gre_tunnel "ovsrtr1" "k8s-netns-rtr" "10.0.1.1" "10.200.0.2" "172.16.100.1/30" "172.16.100.2/30" "169.254.1.1/32" "192.168.1.0/24" "192.168.2.0/24"
-
-# Step 9: Create GRE tunnel between ovsrtr2 and K8s router (optional)
-#create_gre_tunnel "ovsrtr2" "k8s-netns-rtr" "10.0.2.1" "10.200.0.2" "172.16.101.1/30" "172.16.101.2/30" "169.254.1.1/32" "192.168.3.0/24" "192.168.4.0/24"
-
-#echo "Setup complete with K8s router and GRE tunnels."
-#echo "- Edge routers (ovsrtr1, ovsrtr2) have SNAT configured on wan1"
-#echo "- K8s router (k8s-netns-rtr) connected to ISP"
-#echo "- GRE tunnels established for special traffic to 169.254.1.1"
-#echo "- Customer devices can reach K8s services via GRE, other traffic via NAT"
+echo "Kubernetes cluster setup complete."
