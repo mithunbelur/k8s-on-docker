@@ -1,9 +1,9 @@
 apiVersion: gateway.sdn.opsramp.com/v1
 kind: TrafficDirector
 metadata:
-  name: td1
+  name: td2
   namespace: opsramp-sdn
 spec:
   gateways:
-    - namespace: ns1
-      vip: 169.254.1.1
+    - namespace: ns2
+      vip: 169.254.1.2

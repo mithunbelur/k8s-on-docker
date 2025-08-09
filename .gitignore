@@ -1,3 +1,5 @@
 join-command.sh
 .kube
 .ssh
+venv
+.bash_history
