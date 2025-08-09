@@ -34,6 +34,14 @@ lsmod | grep overlay
 
 sysctl net.bridge.bridge-nf-call-iptables net.bridge.bridge-nf-call-ip6tables net.ipv4.ip_forward
 
+mkdir -p /etc/containers
+cat <<EOF | sudo tee -a /etc/containers/registries.conf
+[[registry]]
+prefix = "10.255.255.2:5000"
+location = "10.255.255.2:5000"
+insecure = true
+EOF
+
 systemctl enable --now crio
 
 # Set kubelet to use ex0 IP  

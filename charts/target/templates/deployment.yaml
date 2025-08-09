@@ -22,7 +22,7 @@ spec:
           imagePullPolicy: {{ .Values.target.image.pullPolicy }}
         - name: dp
           env:
-          - name: NAMESPACE
+          - name: IDENTITY
             valueFrom:
               fieldRef:
                 fieldPath: metadata.namespace

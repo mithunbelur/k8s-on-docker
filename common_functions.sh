@@ -205,7 +205,14 @@ function create_devices_in_lan_subnet() {
             echo "Container $CONTAINER_NAME already exists, skipping creation"
         else
             echo "Creating container $CONTAINER_NAME"
-            docker run -it -d --rm --name "$CONTAINER_NAME" --cap-add=NET_ADMIN --network $DOCKER_NETWORK localhost/client-device:v1.0
+            #docker run -it -d --rm --name "$CONTAINER_NAME" --cap-add=NET_ADMIN --network $DOCKER_NETWORK localhost/client-device:v1.0
+            
+            docker run -it -d --rm --name "$CONTAINER_NAME" \
+            --cap-add=NET_ADMIN \
+            --network $DOCKER_NETWORK \
+            --hostname "$CONTAINER_NAME" \
+            -e "IDENTITY=$CONTAINER_NAME" \
+            127.0.0.1:5000/http-udp-server:latest
 
             NEXT_IP_INT=$(( NEXT_IP_INT + 1 ))
             NEXT_IP="$(( (${NEXT_IP_INT} >> 24) & 255 )).$(( (${NEXT_IP_INT} >> 16) & 255 )).$(( (${NEXT_IP_INT} >> 8) & 255 )).$(( ${NEXT_IP_INT} & 255 ))"
