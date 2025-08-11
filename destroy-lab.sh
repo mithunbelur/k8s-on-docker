@@ -21,15 +21,27 @@ delete_devices_in_lan_subnet "c1" "b"
 
 delete_devices_in_lan_subnet "c2" "a"
 delete_devices_in_lan_subnet "c2" "b"
+delete_devices_in_lan_subnet "c2" "c"
+
+delete_devices_in_lan_subnet "c3" "a"
+
+delete_devices_in_lan_subnet "c4" "a"
 
 delete_lan_network "c1" "a"
 delete_lan_network "c1" "b"
 
 delete_lan_network "c2" "a"
 delete_lan_network "c2" "b"
+delete_lan_network "c2" "c"
+
+delete_lan_network "c3" "a"
+
+delete_lan_network "c4" "a"
 
 delete_edge_router "c1"
 delete_edge_router "c2"
+delete_edge_router "c3"
+delete_edge_router "c4"
 
 #Deleting cluster
 delete_cluster_nodes_in_lan_subnet $K8S_RTR "a"
