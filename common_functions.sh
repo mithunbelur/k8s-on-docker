@@ -211,7 +211,6 @@ function create_devices_in_lan_subnet() {
             --cap-add=NET_ADMIN \
             --network $DOCKER_NETWORK \
             --hostname "$CONTAINER_NAME" \
-            -e "IDENTITY=$CONTAINER_NAME" \
             127.0.0.1:5000/http-udp-server:latest
 
             NEXT_IP_INT=$(( NEXT_IP_INT + 1 ))

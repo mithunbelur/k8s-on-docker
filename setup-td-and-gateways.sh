@@ -11,7 +11,7 @@ helm install trafficdirector oci://us-central1-docker.pkg.dev/opsramp-registry/g
 
 # Wait for the CRD to be created
 
-sleep 20
+sleep 30
 
 helm install gw charts/target -n ns1 --create-namespace \
   --set dp.image.repository=us-central1-docker.pkg.dev/opsramp-registry/gateway-cluster-images/trafficdirector \

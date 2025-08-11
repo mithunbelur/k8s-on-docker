@@ -1,0 +1,21 @@
+join-command.sh
+.kube
+.ssh
+venv
+.bash_history
+
+# Python cache files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Pytest cache
+.pytest_cache/
+
+# Log files
+*.log
+logs/
+
+# Test coverage
+.coverage
+htmlcov/
