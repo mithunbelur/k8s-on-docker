@@ -25,10 +25,13 @@ C2_EDGE_ROUTER_WAN_IP="10.2.1.1/30"
 C2_EDGE_ROUTER_GW_IP="10.2.1.2/30"
 C3_EDGE_ROUTER_WAN_IP="10.3.1.1/30"
 C3_EDGE_ROUTER_GW_IP="10.3.1.2/30"
+C4_EDGE_ROUTER_WAN_IP="10.4.1.1/30"
+C4_EDGE_ROUTER_GW_IP="10.4.1.2/30"
 
 create_edge_router_and_link_to_isp_router "c1" $ISP_ROUTER $C1_EDGE_ROUTER_WAN_IP $C1_EDGE_ROUTER_GW_IP
 create_edge_router_and_link_to_isp_router "c2" $ISP_ROUTER $C2_EDGE_ROUTER_WAN_IP $C2_EDGE_ROUTER_GW_IP
 create_edge_router_and_link_to_isp_router "c3" $ISP_ROUTER $C3_EDGE_ROUTER_WAN_IP $C3_EDGE_ROUTER_GW_IP
+create_edge_router_and_link_to_isp_router "c4" $ISP_ROUTER $C4_EDGE_ROUTER_WAN_IP $C4_EDGE_ROUTER_GW_IP
 
 #Step 3: Create Customer LAN networks and link to edge router
 create_lan_network_and_link_to_edge_router "c1" "a" "192.168.11.0/24" 
@@ -39,6 +42,8 @@ create_lan_network_and_link_to_edge_router "c2" "b" "192.168.22.0/24"
 create_lan_network_and_link_to_edge_router "c2" "c" "192.168.23.0/24"
 
 create_lan_network_and_link_to_edge_router "c3" "a" "192.168.31.0/24"
+
+create_lan_network_and_link_to_edge_router "c4" "a" "192.168.41.0/24"
 
 #Step 4: C1 customer has 4 devices(2 in each LAN subnet)
 create_devices_in_lan_subnet "c1" "a" "192.168.11.0/24" 2
@@ -51,6 +56,9 @@ create_devices_in_lan_subnet "c2" "c" "192.168.23.0/24" 1
 
 #Step 6: C3 customer has 1 device in LAN subnet
 create_devices_in_lan_subnet "c3" "a" "192.168.31.0/24" 1
+
+#Step 7: C4 customer has 1 device in LAN subnet
+create_devices_in_lan_subnet "c4" "a" "192.168.41.0/24" 1
 
 K8S_RTR="n1"
 K8S_SUBNET="10.10.10.0/24"
