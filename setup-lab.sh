@@ -72,10 +72,14 @@ create_cluster_nodes_in_lan_subnet $K8S_RTR "a" $K8S_SUBNET 3
 # Need to remove /30 from the IPs for GRE tunnel creation
 C1_EDGE_ROUTER_WAN_IP_1=$(echo $C1_EDGE_ROUTER_WAN_IP | cut -d'/' -f1)
 C2_EDGE_ROUTER_WAN_IP_1=$(echo $C2_EDGE_ROUTER_WAN_IP | cut -d'/' -f1)
+C3_EDGE_ROUTER_WAN_IP_1=$(echo $C3_EDGE_ROUTER_WAN_IP | cut -d'/' -f1)
+C4_EDGE_ROUTER_WAN_IP_1=$(echo $C4_EDGE_ROUTER_WAN_IP | cut -d'/' -f1)
 K8S_EDGE_ROUTER_WAN_IP_1=$(echo $K8S_EDGE_ROUTER_WAN_IP | cut -d'/' -f1)
 
 create_gre_tunnel "c1" $K8S_RTR $C1_EDGE_ROUTER_WAN_IP_1 $K8S_EDGE_ROUTER_WAN_IP_1 "169.254.0.0/16" "192.168.11.0/24" "192.168.12.0/24"
-create_gre_tunnel "c2" $K8S_RTR $C2_EDGE_ROUTER_WAN_IP_1 $K8S_EDGE_ROUTER_WAN_IP_1 "169.254.0.0/16" "192.168.21.0/24" "192.168.22.0/24"
+create_gre_tunnel "c2" $K8S_RTR $C2_EDGE_ROUTER_WAN_IP_1 $K8S_EDGE_ROUTER_WAN_IP_1 "169.254.0.0/16" "192.168.21.0/24" "192.168.22.0/24" "192.168.23.0/24"
+create_gre_tunnel "c3" $K8S_RTR $C3_EDGE_ROUTER_WAN_IP_1 $K8S_EDGE_ROUTER_WAN_IP_1 "169.254.0.0/16" "192.168.31.0/24"
+create_gre_tunnel "c4" $K8S_RTR $C4_EDGE_ROUTER_WAN_IP_1 $K8S_EDGE_ROUTER_WAN_IP_1 "169.254.0.0/16" "192.168.41.0/24"
 
 CONTROL_NODE=${K8S_RTR}"a1"
 

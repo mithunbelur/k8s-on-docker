@@ -72,6 +72,7 @@ class HelmTestFramework:
             f"helm install {self.chart_name} {self.chart_url} "
             f"--version {self.chart_version} "
             f"--namespace {self.namespace} --create-namespace "
+            f"--set trafficDirector.env.DEV_SETUP=true "
             f"--set trafficDirectorController.image.repository=us-central1-docker.pkg.dev/opsramp-registry/gateway-cluster-images/trafficdirector-controller "
             f"--set trafficDirector.image.repository=us-central1-docker.pkg.dev/opsramp-registry/gateway-cluster-images/trafficdirector "
             f"--set trafficDirectorController.image.tag=latest "

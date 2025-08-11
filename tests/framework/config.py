@@ -18,7 +18,7 @@ GATEWAY_CONFIGS = [
     },
     {
         'namespace': 'ns2', 
-        'subnets': '192.168.21.0/24'
+        'subnets': '192.168.21.0/24,192.168.22.0/24,192.168.23.0/24'
     },
     {
         'namespace': 'ns3',

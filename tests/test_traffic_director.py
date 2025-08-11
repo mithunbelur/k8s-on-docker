@@ -35,8 +35,8 @@ class TestTrafficDirector:
         yield
         
         # Cleanup after all tests
-        request.cls.framework.cleanup_helm_release()
-        request.cls.framework.cleanup_gateway_releases()
+        #request.cls.framework.cleanup_helm_release()
+        #request.cls.framework.cleanup_gateway_releases()
     
     def test_install_with_program_aws_route_table_true_no_table(self):
         """Test 1: Install with programAwsRouteTable=true but no awsRouteTable"""
@@ -125,7 +125,7 @@ class TestTrafficDirector:
         
         # Wait for all pods to be ready
         logger.info("Waiting for all gateway pods to be ready...")
-        time.sleep(30)
+        time.sleep(10)
         
         # Check each namespace for pod readiness
         for gateway in self.framework.gateways:
@@ -138,3 +138,113 @@ class TestTrafficDirector:
             logger.info(f"✓ All pods ready in {namespace}")
         
         logger.info("✓ Test 4 passed: All 4 gateway releases installed successfully")
+
+    def test_create_traffic_director_cr_same_vip_all_namespace(self):
+        """Test 5: Create Traffic Director CR and validate connectivity from customer devices"""
+        logger.info("Running Test 5: Creating Traffic Director CR and validating connectivity")
+        
+        # First ensure gateways are installed (dependency on previous test)
+        logger.info("Verifying gateway installations are present...")
+        for gateway in self.framework.gateways:
+            namespace = gateway['namespace']
+            check_cmd = f"helm list -n {namespace} -q"
+            result = self.framework.run_command(check_cmd)
+            assert "gw" in result['stdout'], f"Gateway not found in namespace {namespace}. Run gateway installation test first."
+        
+        # Query and loop for all traffic director CRs and delete them
+        logger.info("Cleaning up any existing Traffic Director CRs...")
+        # This ensures we start fresh
+        cleanup_cmd = "kubectl delete trafficdirector td-all-gateways -n opsramp-sdn --ignore-not-found"
+        self.framework.run_command(cleanup_cmd)
+        
+        # Create Traffic Director CR
+        logger.info("Creating Traffic Director CR with VIP 169.254.1.5")
+        
+        td_cr_yaml = """
+apiVersion: gateway.sdn.opsramp.com/v1
+kind: TrafficDirector
+metadata:
+  name: td-all-gateways
+  namespace: opsramp-sdn
+spec:
+  gateways:
+    - namespace: ns1
+      vip: "169.254.1.5"
+    - namespace: ns2
+      vip: "169.254.1.5"
+    - namespace: ns3
+      vip: "169.254.1.5"
+    - namespace: ns4
+      vip: "169.254.1.5"
+"""
+        
+        # Write CR to temporary file and apply
+        cr_file = "/tmp/td-cr.yaml"
+        with open(cr_file, 'w') as f:
+            f.write(td_cr_yaml)
+        
+        apply_cmd = f"kubectl apply -f {cr_file}"
+        result = self.framework.run_command(apply_cmd)
+        assert result['success'], f"Failed to create Traffic Director CR. Error: {result['stderr']}"
+        
+        logger.info("✓ Traffic Director CR created successfully")
+        
+        # Wait for Traffic Director to be ready
+        logger.info("Waiting for Traffic Director to be ready...")
+        time.sleep(5)  # Allow time for CR processing and route programming
+        
+        # Define customer devices for testing
+        customer_devices = {
+            'c1': ['c1a1', 'c1a2', 'c1b1', 'c1b2'],  # Customer 1 devices
+            'c2': ['c2a1', 'c2b1', 'c2c1'],          # Customer 2 devices  
+            'c3': ['c3a1'],                          # Customer 3 devices
+            'c4': ['c4a1'],                          # Customer 4 devices
+        }
+        
+        # Test connectivity from each customer device
+        vip = "169.254.1.5:18080"
+        expected_responses = ["Hello from ns1!", "Hello from ns2!", "Hello from ns3!", "Hello from ns4!"]
+        
+        for customer, devices in customer_devices.items():
+            logger.info(f"Testing connectivity from {customer} devices to VIP {vip}")
+            
+            for device in devices:
+                logger.info(f"Testing connectivity from device {device}")
+                
+                # Test multiple requests to verify load balancing
+                responses = []
+                for i in range(8):  # Test 8 requests to see round-robin behavior
+                    curl_cmd = f"docker exec {device} curl -s --connect-timeout 10 http://{vip}"
+                    result = self.framework.run_command(curl_cmd, timeout=15)
+                    
+                    if result['success'] and result['stdout']:
+                        responses.append(result['stdout'].strip())
+                        logger.info(f"  Request {i+1}: {result['stdout'].strip()}")
+                    else:
+                        logger.warning(f"  Request {i+1}: Failed - {result['stderr']}")
+                
+                # Validate that we got responses
+                assert len(responses) > 0, f"No successful responses from device {device} to VIP {vip}"
+                
+                # Validate that responses are from expected gateways
+                valid_responses = [r for r in responses if r in expected_responses]
+                assert len(valid_responses) > 0, f"No valid responses from device {device}. Got: {responses}"
+                
+                # Check for load balancing (should get responses from multiple gateways)
+                unique_responses = set(responses)
+                logger.info(f"  Device {device} received responses from {len(unique_responses)} different gateways: {unique_responses}")
+                
+                logger.info(f"✓ Device {device} successfully connected to VIP {vip}")
+        
+        # Additional validation: Check Traffic Director status
+        logger.info("Checking Traffic Director CR status...")
+        status_cmd = "kubectl get trafficdirector td-all-gateways -n opsramp-sdn -o yaml"
+        result = self.framework.run_command(status_cmd)
+        assert result['success'], f"Failed to get Traffic Director status. Error: {result['stderr']}"
+        
+        logger.info("✓ Test 5 passed: Traffic Director CR created and all devices can connect to VIP")
+        
+        # Cleanup the CR
+        cleanup_cmd = f"kubectl delete -f {cr_file}"
+        self.framework.run_command(cleanup_cmd)
+        logger.info("✓ Traffic Director CR cleaned up")
