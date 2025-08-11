@@ -1,0 +1,125 @@
+@startuml NetworkLabTopology
+!theme plain
+skinparam backgroundColor white
+
+' Layout settings for compact diagram
+!define RECTANGLE_WIDTH 200
+!define NODE_WIDTH 150
+skinparam minClassWidth 100
+skinparam ranksep 20
+skinparam nodesep 10
+
+
+cloud Internet
+node "Host System\n(DEFAULT Route Interface)" as Host
+
+rectangle "ISP Infrastructure" {
+    node "isp-host IF\n10.255.255.2/30" as ISPHostIF
+    node "ISP Router (isp)\nNamespace: isp\n10.255.255.1/30" as ISPRouter
+}
+
+rectangle "Customer 1 Network" {
+    node "Customer 1 (c1) EdgeRtr\nWAN: wan1 (10.1.1.1/30)\nLAN: lana_1 (192.168.11.254/24)\nLAN: lanb_1 (192.168.12.254/24)" as C1Edge
+    
+    rectangle "LAN-A\n192.168.11.0/24\nGW: 192.168.11.254" {
+        node "c1a-br" as C1ABR
+        node "c1a1\n192.168.11.1" as C1A1
+        node "c1a2\n192.168.11.2" as C1A2
+    }
+    
+    rectangle "LAN-B\n192.168.12.0/24\nGW: 192.168.12.254" {
+        node "c1b-br" as C1BBR
+        node "c1b1\n192.168.12.1" as C1B1
+        node "c1b2\n192.168.12.2" as C1B2
+    }
+}
+
+rectangle "Customer 2 Network" {
+    node "Customer 2 (c2) EdgeRtr\nWAN: wan1 (10.2.1.1/30)\nLAN: lana_1 (192.168.21.254/24)\nLAN: lanb_1 (192.168.22.254/24)\nLAN: lanc_1 (192.168.23.254/24)" as C2Edge
+    
+    rectangle "LAN-A\n192.168.21.0/24\nGW: 192.168.21.254" {
+        node "c2a-br" as C2ABR
+        node "c2a1\n192.168.21.1" as C2A1
+    }
+    
+    rectangle "LAN-B\n192.168.22.0/24\nGW: 192.168.22.254" {
+        node "c2b-br" as C2BBR
+        node "c2b1\n192.168.22.1" as C2B1
+    }
+    
+    rectangle "LAN-C\n192.168.23.0/24\nGW: 192.168.23.254" {
+        node "c2c-br" as C2CBR
+        node "c2c1\n192.168.23.1" as C2C1
+    }
+}
+
+rectangle "Opsramp Network (Runs Kubernetes)" {
+    node "Opsramp (n1) EdgeRtr\nWAN: wan1 (10.0.1.1/30)\nLAN: lana_1 (10.10.10.254/24)" as K8SEdge
+    
+    rectangle "K8s LAN\n10.10.10.0/24\nGW: 10.10.10.254" {
+        node "n1a-br" as K8SBR
+        node "n1a1\n10.10.10.1\n(master)" as K8SMaster
+        node "n1a2\n10.10.10.2" as K8SWorker1
+        node "n1a3\n10.10.10.3" as K8SWorker2
+    }
+}
+
+' Connections
+Internet --> Host
+Host --> ISPHostIF
+ISPHostIF --> ISPRouter
+
+ISPRouter --> C1Edge
+ISPRouter --> C2Edge
+ISPRouter --> K8SEdge
+
+C1Edge --> C1ABR
+C1Edge --> C1BBR
+C1ABR --> C1A1
+C1ABR --> C1A2
+C1BBR --> C1B1
+C1BBR --> C1B2
+
+C2Edge --> C2ABR
+C2Edge --> C2BBR
+C2Edge --> C2CBR
+C2ABR --> C2A1
+C2BBR --> C2B1
+C2CBR --> C2C1
+
+K8SEdge --> K8SBR
+K8SBR --> K8SMaster
+K8SBR --> K8SWorker1
+K8SBR --> K8SWorker2
+
+' GRE Tunnels
+C1Edge -.-> K8SEdge : GRE Tunnel\n(Carries 169.254.0.0/16 Traffic)
+C2Edge -.-> K8SEdge : GRE Tunnel\n(Carries 169.254.0.0/16 Traffic)
+
+' Add styling for better readability
+skinparam node {
+    BackgroundColor LightBlue
+    BorderColor DarkBlue
+    FontSize 9
+    MaximumWidth 120
+}
+
+skinparam rectangle {
+    BackgroundColor LightYellow
+    BorderColor DarkOrange
+    FontSize 11
+}
+
+skinparam arrow {
+    FontSize 7
+}
+
+note left of ISPRouter
+  ISP Router Interfaces:
+  - isp-host: 10.255.255.1/30
+  - c1-wan1: 10.1.1.2/30
+  - c2-wan1: 10.2.1.2/30
+  - n1-wan1: 10.0.1.2/30
+end note
+
+@enduml
