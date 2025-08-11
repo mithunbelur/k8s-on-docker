@@ -20,22 +20,23 @@ logger = logging.getLogger(__name__)
 class TestHelmInstallation:
     """Test cases for Helm installation scenarios"""
     
-    @pytest.fixture(autouse=True)
-    def setup_and_teardown(self):
-        """Setup and teardown for each test"""
+    @pytest.fixture(scope='class', autouse=True)
+    def setup_and_teardown(self, request):
+        """Setup and teardown for the entire test suite"""
         debug_enabled = is_debug_enabled()
         log_file = get_log_file()
-        self.framework = HelmTestFramework(debug=debug_enabled, log_file=log_file)
+        # Set framework on the class itself
+        request.cls.framework = HelmTestFramework(debug=debug_enabled, log_file=log_file)
         
-        # Cleanup before test
-        self.framework.cleanup_helm_release()
-        self.framework.cleanup_gateway_releases()
+        # Cleanup before all tests
+        request.cls.framework.cleanup_helm_release()
+        request.cls.framework.cleanup_gateway_releases()
         
         yield
         
-        # Cleanup after test
-        self.framework.cleanup_helm_release()
-        self.framework.cleanup_gateway_releases()
+        # Cleanup after all tests
+        request.cls.framework.cleanup_helm_release()
+        request.cls.framework.cleanup_gateway_releases()
     
     def test_install_with_program_aws_route_table_true_no_table(self):
         """Test 1: Install with programAwsRouteTable=true but no awsRouteTable"""
