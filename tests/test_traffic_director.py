@@ -17,8 +17,8 @@ from framework.config import is_debug_enabled, get_log_file
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-class TestHelmInstallation:
-    """Test cases for Helm installation scenarios"""
+class TestTrafficDirector:
+    """Test cases for Traffic Director scenarios"""
     
     @pytest.fixture(scope='class', autouse=True)
     def setup_and_teardown(self, request):

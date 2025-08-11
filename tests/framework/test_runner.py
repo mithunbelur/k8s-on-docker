@@ -10,18 +10,18 @@ def run_single_test(test_name: str):
     # Add -s flag to disable output capture when debug is enabled
     debug_enabled = is_debug_enabled()
     if debug_enabled:
-        pytest.main(["-v", "-s", f"test_helm_installation.py::{test_name}"])
+        pytest.main(["-v", "-s", f"test_traffic_director.py::{test_name}"])
     else:
-        pytest.main(["-v", f"test_helm_installation.py::{test_name}"])
+        pytest.main(["-v", f"test_traffic_director.py::{test_name}"])
 
 def run_all_tests():
     """Run all tests."""
     # Add -s flag to disable output capture when debug is enabled
     debug_enabled = is_debug_enabled()
     if debug_enabled:
-        pytest.main(["-v", "-s", "test_helm_installation.py"])
+        pytest.main(["-v", "-s", "test_traffic_director.py"])
     else:
-        pytest.main(["-v", "test_helm_installation.py"])
+        pytest.main(["-v", "test_traffic_director.py"])
 
 def print_usage():
     """Print usage instructions."""
@@ -51,8 +51,8 @@ Usage:
 
 4. Using pytest directly (after activating venv):
    source venv/bin/activate
-   pytest test_helm_installation.py -v
-   TEST_DEBUG=true pytest test_helm_installation.py -v -s
+   pytest test_traffic_director.py -v
+   TEST_DEBUG=true pytest test_traffic_director.py -v -s
 
 5. Using the run script:
    ./run_tests.sh
