@@ -203,28 +203,36 @@ spec:
         customer_devices = {
             'c1': {
                 'devices': ['c1a1', 'c1a2', 'c1b1', 'c1b2'],  # Customer 1 devices
-                'vip': "169.254.1.5:18080",
+                'vip': "169.254.1.5",
+                'http_port': 18080,
+                'udp_port': 9090,
                 'expected_responses': ["Hello from ns1!"]
             },
             'c2': {
                 'devices': ['c2a1', 'c2b1', 'c2c1'],          # Customer 2 devices
-                'vip': "169.254.1.5:18080",
+                'vip': "169.254.1.5",
+                'http_port': 18080,
+                'udp_port': 9090,
                 'expected_responses': ["Hello from ns2!"]
             },
             'c3': {
                 'devices': ['c3a1'],                          # Customer 3 devices
-                'vip': "169.254.1.5:18080",
+                'vip': "169.254.1.5",
+                'http_port': 18080,
+                'udp_port': 9090,
                 'expected_responses': ["Hello from ns3!"]
             },
             'c4': {
                 'devices': ['c4a1'],                          # Customer 4 devices
-                'vip': "169.254.1.5:18080",
+                'vip': "169.254.1.5",
+                'http_port': 18080,
+                'udp_port': 9090,
                 'expected_responses': ["Hello from ns4!"]
             }
         }
         
         # Test connectivity from each customer device      
-        connectivity_success = self.framework.connectivity_tester.test_customer_device_connectivity(
+        connectivity_success = self.framework.connectivity_tester.test_device_to_gateway_connectivity(
             customer_devices, 
             num_requests=1, 
             timeout=15

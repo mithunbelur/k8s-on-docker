@@ -13,7 +13,7 @@ class ConnectivityTester:
     def __init__(self, command_runner):
         self.command_runner = command_runner
     
-    def test_customer_device_connectivity(self, customer_devices: Dict, num_requests: int = 2, timeout: int = 15) -> bool:
+    def test_device_to_gateway_connectivity(self, customer_devices: Dict, num_requests: int = 2, timeout: int = 15) -> bool:
         """
         Test connectivity from customer devices to their configured VIPs.
         
@@ -33,10 +33,20 @@ class ConnectivityTester:
             for device in customer['devices']:
                 logger.info(f"Testing connectivity from device {device}")
                 
+                # Test UDP connectivity using this command kubectl exec -it -n ns1 target-dep-8569b5f576-xhcbn -c dp  -- bash -c "echo 'hello' | nc -u 192.168.11.1 9090 -w 1"
+                udp_cmd = f"docker exec {device} bash -c \"echo 'hello' | nc -u {customer['vip']} {customer['udp_port']} -w 1\""
+                udp_result = self.command_runner.run_command(udp_cmd, timeout=timeout)
+                logger.info(f"Device to Gateway UDP result: {udp_result}")
+                if udp_result['success'] and "Echo: hello" in udp_result['stdout']:
+                    logger.info(f"  ✓ UDP connectivity to Gateway {customer['vip']} successful")
+                else:
+                    logger.warning(f"  ✗ UDP connectivity to Gateway {customer['vip']} failed: {udp_result['stderr']}")
+                    all_tests_passed = False
+
                 # Test multiple requests to verify load balancing
                 responses = []
                 for i in range(num_requests):
-                    curl_cmd = f"docker exec {device} curl -s --connect-timeout 10 http://{customer['vip']}"
+                    curl_cmd = f"docker exec {device} curl -s --connect-timeout 10 http://{customer['vip']}:{customer['http_port']}"
                     result = self.command_runner.run_command(curl_cmd, timeout=timeout)
                     
                     if result['success'] and result['stdout']:
@@ -47,7 +57,7 @@ class ConnectivityTester:
                 
                 # Validate that we got responses
                 if len(responses) == 0:
-                    logger.error(f"No successful responses from device {device} to VIP {customer['vip']}")
+                    logger.error(f"No successful responses from device {device} to VIP {customer['vip']}:{customer['http_port']}")
                     all_tests_passed = False
                     continue
                 
