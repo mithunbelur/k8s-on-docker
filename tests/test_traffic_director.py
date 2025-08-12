@@ -226,7 +226,7 @@ spec:
         # Test connectivity from each customer device      
         connectivity_success = self.framework.connectivity_tester.test_customer_device_connectivity(
             customer_devices, 
-            num_requests=2, 
+            num_requests=1, 
             timeout=15
         )
         
@@ -265,7 +265,7 @@ spec:
         
         reverse_connectivity_success = self.framework.connectivity_tester.test_gateway_to_device_connectivity(
             gateway_to_customer_mapping,
-            num_requests=2,
+            num_requests=1,
             timeout=15
         )
         

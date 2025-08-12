@@ -101,15 +101,24 @@ class ConnectivityTester:
                 logger.info(f"Testing connectivity from {gateway_pod} to device {device_ip}")
                 
                 # Test ping connectivity first
-                ping_cmd = f"kubectl exec -n {namespace} {gateway_pod} -c dp -- ping -c 3 -W 5 {device_ip}"
+                ping_cmd = f"kubectl exec -n {namespace} {gateway_pod} -c dp -- ping -c 1 -W 2 {device_ip}"
                 ping_result = self.command_runner.run_command(ping_cmd, timeout=timeout)
                 
-                if ping_result['success']:
+                if ping_result['success'] and "0% packet loss" in ping_result['stdout']:
                     logger.info(f"  ✓ Ping to {device_ip} successful")
                 else:
                     logger.warning(f"  ✗ Ping to {device_ip} failed: {ping_result['stderr']}")
                     all_tests_passed = False
                 
+                # Test UDP connectivity using this command kubectl exec -it -n ns1 target-dep-8569b5f576-xhcbn -c dp  -- bash -c "echo 'hello' | nc -u 192.168.11.1 9090 -w 1"
+                udp_cmd = f"kubectl exec -n {namespace} {gateway_pod} -c dp -- bash -c \"echo 'hello' | nc -u {device_ip} 9090 -w 1\""
+                udp_result = self.command_runner.run_command(udp_cmd, timeout=timeout)
+                if udp_result['success'] and "Echo: hello" in udp_result['stdout']:
+                    logger.info(f"  ✓ UDP connectivity to {device_ip} successful")
+                else:
+                    logger.warning(f"  ✗ UDP connectivity to {device_ip} failed: {udp_result['stderr']}")
+                    all_tests_passed = False
+
                 # Test HTTP connectivity
                 responses = []
                 for i in range(num_requests):
