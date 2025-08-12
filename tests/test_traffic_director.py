@@ -26,8 +26,8 @@ class TestTrafficDirector:
         request.cls.framework = HelmTestFramework(debug=debug_enabled)
         
         # Cleanup before all tests
-        request.cls.framework.cleanup_helm_release()
-        request.cls.framework.cleanup_gateway_releases()
+        #request.cls.framework.cleanup_helm_release()
+        #request.cls.framework.cleanup_gateway_releases()
         
         yield
         
@@ -913,3 +913,96 @@ spec:
             self.framework.run_command(cleanup_cmd)
         
         logger.info("✓ All Traffic Director CRs cleaned up")
+
+    def test_multiple_traffic_director_same_namespace_should_fail(self):
+        """Test 9: Create multiple Traffic Director CRs with same namespace should fail"""
+        logger.info("Running Test 9: Creating multiple Traffic Director CRs with same namespace should fail")
+        
+        # First ensure gateways are installed
+        logger.info("Verifying gateway installations are present...")
+        for gateway in self.framework.gateways:
+            namespace = gateway['namespace']
+            check_cmd = f"helm list -n {namespace} -q"
+            result = self.framework.run_command(check_cmd)
+            assert "gw" in result['stdout'], f"Gateway not found in namespace {namespace}. Run gateway installation test first."
+        
+        # Query and cleanup all existing traffic director CRs
+        logger.info("Cleaning up any existing Traffic Director CRs...")
+        cr_list_cmd = "kubectl get trafficdirector -n opsramp-sdn -o jsonpath='{.items[*].metadata.name}'"
+        result = self.framework.run_command(cr_list_cmd)
+        existing_crs = result['stdout'].split()
+        logger.info(f"Found existing Traffic Director CRs: {existing_crs}")
+        if existing_crs:
+            for cr_name in existing_crs:
+                cleanup_cmd = f"kubectl delete trafficdirector {cr_name} -n opsramp-sdn --ignore-not-found"
+                self.framework.run_command(cleanup_cmd)
+        
+        # Create first Traffic Director CR for ns1
+        logger.info("Creating first Traffic Director CR for ns1...")
+        
+        td1_cr_yaml = """
+apiVersion: gateway.sdn.opsramp.com/v1
+kind: TrafficDirector
+metadata:
+  name: td1
+  namespace: opsramp-sdn
+spec:
+  gateways:
+    - namespace: ns1
+      vip: "169.254.1.1"
+"""
+        
+        # Write first CR to file and apply
+        cr1_file = "/tmp/td1-same-ns-test.yaml"
+        with open(cr1_file, 'w') as f:
+            f.write(td1_cr_yaml)
+        
+        apply_cmd1 = f"kubectl apply -f {cr1_file}"
+        result1 = self.framework.run_command(apply_cmd1)
+        assert result1['success'], f"Failed to create first Traffic Director CR td1. Error: {result1['stderr']}"
+        
+        logger.info("✓ First Traffic Director CR (td1) created successfully")
+        
+        # Wait for first TD to be processed
+        time.sleep(2)
+        
+        # Create second Traffic Director CR for the same ns1 namespace
+        logger.info("Creating second Traffic Director CR for the same ns1 namespace...")
+        
+        td2_cr_yaml = """
+apiVersion: gateway.sdn.opsramp.com/v1
+kind: TrafficDirector
+metadata:
+  name: td2
+  namespace: opsramp-sdn
+spec:
+  gateways:
+    - namespace: ns1
+      vip: "169.254.1.2"
+"""
+        
+        # Write second CR to file and apply
+        cr2_file = "/tmp/td2-same-ns-test.yaml"
+        with open(cr2_file, 'w') as f:
+            f.write(td2_cr_yaml)
+        
+        apply_cmd2 = f"kubectl apply -f {cr2_file}"
+        result2 = self.framework.run_command(apply_cmd2)
+        
+        # The second CR should fail with an error "Namespace ns1 is already in use by another traffic director : opsramp-sdn.td1"
+        assert not result2['success'], f"Unexpectedly succeeded in creating second Traffic Director CR td2. Output: {result2['stdout']}"
+        assert "Namespace ns1 is already in use by another traffic director : opsramp-sdn.td1" in result2['stderr'], f"Expected error message not found. Got: {result2['stderr']}"
+
+        logger.info("✓ Second Traffic Director CR (td2) created, checking for validation error...")
+        
+        # Wait for validation to be processed
+        time.sleep(5)
+        
+        # Cleanup both CRs
+        logger.info("Cleaning up test Traffic Director CRs...")
+        cleanup_cmd1 = f"kubectl delete -f {cr1_file} --ignore-not-found"
+        cleanup_cmd2 = f"kubectl delete -f {cr2_file} --ignore-not-found"
+        self.framework.run_command(cleanup_cmd1)
+        self.framework.run_command(cleanup_cmd2)
+        
+        logger.info("✓ Test Traffic Director CRs cleaned up")
