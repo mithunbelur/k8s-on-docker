@@ -224,37 +224,14 @@ spec:
         }
         
         # Test connectivity from each customer device      
-        for customer_name, customer in customer_devices.items():
-            logger.info(f"Testing connectivity from {customer_name} devices to VIP {customer['vip']}")
-
-            for device in customer['devices']:
-                logger.info(f"Testing connectivity from device {device}")
-                
-                # Test multiple requests to verify load balancing
-                responses = []
-                for i in range(2):  # Test 2 requests to see round-robin behavior
-                    curl_cmd = f"docker exec {device} curl -s --connect-timeout 10 http://{customer['vip']}"
-                    result = self.framework.run_command(curl_cmd, timeout=15)
-                    
-                    if result['success'] and result['stdout']:
-                        responses.append(result['stdout'].strip())
-                        logger.info(f"  Request {i+1}: {result['stdout'].strip()}")
-                    else:
-                        logger.warning(f"  Request {i+1}: Failed - {result['stderr']}")
-                
-                # Validate that we got responses
-                assert len(responses) > 0, f"No successful responses from device {device} to VIP {customer['vip']}"
-                
-                # Validate that responses are from expected gateways
-                valid_responses = [r for r in responses if r in customer['expected_responses']]
-                assert len(valid_responses) > 0, f"No valid responses from device {device}. Got: {responses}"
-                
-                # Check for load balancing (should get responses from multiple gateways)
-                unique_responses = set(responses)
-                logger.info(f"  Device {device} received responses from {len(unique_responses)} different gateways: {unique_responses}")
-                
-                logger.info(f"✓ Device {device} successfully connected to VIP {customer['vip']}")
+        connectivity_success = self.framework.connectivity_tester.test_customer_device_connectivity(
+            customer_devices, 
+            num_requests=2, 
+            timeout=15
+        )
         
+        assert connectivity_success, "Connectivity tests failed for some devices"
+       
         # Additional validation: Check Traffic Director status
         logger.info("Checking Traffic Director CR status...")
         status_cmd = "kubectl get trafficdirector td-all-gateways -n opsramp-sdn -o yaml"

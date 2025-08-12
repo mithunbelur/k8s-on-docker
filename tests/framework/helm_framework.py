@@ -9,6 +9,7 @@ from typing import Dict
 from .config import DEFAULT_NAMESPACE, DEFAULT_CHART_NAME, DEFAULT_CHART_URL, DEFAULT_CHART_VERSION, GATEWAY_CONFIGS
 from .command_runner import CommandRunner
 from .logger import get_logger
+from .connectivity_tester import ConnectivityTester
 
 logger = get_logger()
 
@@ -24,7 +25,10 @@ class HelmTestFramework:
         
         # Initialize command runner
         self.command_runner = CommandRunner(debug=debug)
-    
+        
+        # Initialize connectivity tester
+        self.connectivity_tester = ConnectivityTester(self.command_runner)
+
     def run_command(self, cmd: str, capture_output: bool = True, timeout: int = 60) -> Dict:
         """Run a shell command and return result."""
         return self.command_runner.run_command(cmd, capture_output, timeout)
