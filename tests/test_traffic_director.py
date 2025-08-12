@@ -292,3 +292,155 @@ spec:
         self.framework.run_command(cleanup_cmd)
         logger.info("✓ Traffic Director CR cleaned up")
 
+    def test_create_single_traffic_director_all_namespace_different_vip(self):
+        """Test 6: Create Traffic Director CR with different VIPs for each namespace"""
+        logger.info("Running Test 6: Creating Traffic Director CR with different VIPs per namespace")
+        
+        # First ensure gateways are installed (dependency on previous test)
+        logger.info("Verifying gateway installations are present...")
+        for gateway in self.framework.gateways:
+            namespace = gateway['namespace']
+            check_cmd = f"helm list -n {namespace} -q"
+            result = self.framework.run_command(check_cmd)
+            assert "gw" in result['stdout'], f"Gateway not found in namespace {namespace}. Run gateway installation test first."
+        
+        # Query and loop for all traffic director CRs and delete them
+        logger.info("Cleaning up any existing Traffic Director CRs...")
+        cr_list_cmd = "kubectl get trafficdirector -n opsramp-sdn -o jsonpath='{.items[*].metadata.name}'"
+        result = self.framework.run_command(cr_list_cmd)
+        existing_crs = result['stdout'].split()
+        logger.info(f"Found existing Traffic Director CRs: {existing_crs}")
+        if existing_crs:
+            for cr_name in existing_crs:
+                cleanup_cmd = f"kubectl delete trafficdirector {cr_name} -n opsramp-sdn --ignore-not-found"
+                self.framework.run_command(cleanup_cmd)
+        
+        # Create Traffic Director CR with different VIPs
+        logger.info("Creating Traffic Director CR with different VIPs per namespace")
+        
+        td_cr_yaml = """
+apiVersion: gateway.sdn.opsramp.com/v1
+kind: TrafficDirector
+metadata:
+  name: td-different-vips
+  namespace: opsramp-sdn
+spec:
+  gateways:
+    - namespace: ns1
+      vip: "169.254.1.1"
+    - namespace: ns2
+      vip: "169.254.1.2"
+    - namespace: ns3
+      vip: "169.254.1.3"
+    - namespace: ns4
+      vip: "169.254.1.4"
+"""
+        
+        # Write CR to temporary file and apply
+        cr_file = "/tmp/td-different-vips-cr.yaml"
+        with open(cr_file, 'w') as f:
+            f.write(td_cr_yaml)
+        
+        apply_cmd = f"kubectl apply -f {cr_file}"
+        result = self.framework.run_command(apply_cmd)
+        assert result['success'], f"Failed to create Traffic Director CR. Error: {result['stderr']}"
+        
+        logger.info("✓ Traffic Director CR created successfully")
+        
+        # Wait for Traffic Director to be ready
+        logger.info("Waiting for Traffic Director to be ready...")
+        time.sleep(5)  # Allow time for CR processing and route programming
+        
+        # Define customer devices with different VIPs for testing
+        customer_devices = {
+            'c1': {
+                'devices': ['c1a1', 'c1a2', 'c1b1', 'c1b2'],  # Customer 1 devices
+                'vip': "169.254.1.1",
+                'http_port': 18080,
+                'udp_port': 9090,
+                'expected_responses': ["Hello from ns1!"]
+            },
+            'c2': {
+                'devices': ['c2a1', 'c2b1', 'c2c1'],          # Customer 2 devices
+                'vip': "169.254.1.2",
+                'http_port': 18080,
+                'udp_port': 9090,
+                'expected_responses': ["Hello from ns2!"]
+            },
+            'c3': {
+                'devices': ['c3a1'],                          # Customer 3 devices
+                'vip': "169.254.1.3",
+                'http_port': 18080,
+                'udp_port': 9090,
+                'expected_responses': ["Hello from ns3!"]
+            },
+            'c4': {
+                'devices': ['c4a1'],                          # Customer 4 devices
+                'vip': "169.254.1.4",
+                'http_port': 18080,
+                'udp_port': 9090,
+                'expected_responses': ["Hello from ns4!"]
+            }
+        }
+        
+        # Test connectivity from each customer device to their specific VIP
+        connectivity_success = self.framework.connectivity_tester.test_device_to_gateway_connectivity(
+            customer_devices, 
+            num_requests=2, 
+            timeout=15
+        )
+        
+        assert connectivity_success, "Connectivity tests failed for some devices"
+        
+        # Test reverse connectivity from gateway pods to customer devices
+        logger.info("Testing reverse connectivity from gateway pods to customer devices...")
+        
+        gateway_to_customer_mapping = {
+            'ns1': {
+                'devices': [
+                    {'ip': '192.168.11.1', 'expected_response': 'Hello from 192.168.11.1!'},
+                    {'ip': '192.168.11.2', 'expected_response': 'Hello from 192.168.11.2!'},
+                    {'ip': '192.168.12.1', 'expected_response': 'Hello from 192.168.12.1!'},
+                    {'ip': '192.168.12.2', 'expected_response': 'Hello from 192.168.12.2!'}
+                ]
+            },
+            'ns2': {
+                'devices': [
+                    {'ip': '192.168.21.1', 'expected_response': 'Hello from 192.168.21.1!'},
+                    {'ip': '192.168.22.1', 'expected_response': 'Hello from 192.168.22.1!'},
+                    {'ip': '192.168.23.1', 'expected_response': 'Hello from 192.168.23.1!'}
+                ]
+            },
+            'ns3': {
+                'devices': [
+                    {'ip': '192.168.31.1', 'expected_response': 'Hello from 192.168.31.1!'}
+                ]
+            },
+            'ns4': {
+                'devices': [
+                    {'ip': '192.168.41.1', 'expected_response': 'Hello from 192.168.41.1!'}
+                ]
+            }
+        }
+        
+        reverse_connectivity_success = self.framework.connectivity_tester.test_gateway_to_device_connectivity(
+            gateway_to_customer_mapping,
+            num_requests=1,
+            timeout=15
+        )
+        
+        assert reverse_connectivity_success, "Reverse connectivity tests failed for some gateway-device pairs"
+
+        # Additional validation: Check Traffic Director status
+        logger.info("Checking Traffic Director CR status...")
+        status_cmd = "kubectl get trafficdirector td-different-vips -n opsramp-sdn -o yaml"
+        result = self.framework.run_command(status_cmd)
+        assert result['success'], f"Failed to get Traffic Director status. Error: {result['stderr']}"
+        
+        logger.info("✓ Test 6 passed: Traffic Director CR with different VIPs created and all devices can connect to their respective VIPs")
+        
+        # Cleanup the CR
+        cleanup_cmd = f"kubectl delete -f {cr_file}"
+        self.framework.run_command(cleanup_cmd)
+        logger.info("✓ Traffic Director CR cleaned up")
+
