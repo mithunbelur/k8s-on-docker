@@ -65,3 +65,76 @@ class ConnectivityTester:
                 logger.info(f"✓ Device {device} successfully connected to VIP {customer['vip']}")
         
         return all_tests_passed
+    
+    def test_gateway_to_device_connectivity(self, gateway_to_customer_mapping: Dict, num_requests: int = 2, timeout: int = 15) -> bool:
+        """
+        Test reverse connectivity from gateway pods to customer devices.
+        
+        Args:
+            gateway_to_customer_mapping: Dict with gateway namespace and device info
+            num_requests: Number of requests to test per device
+            timeout: Timeout for each request
+            
+        Returns:
+            bool: True if all connectivity tests pass
+        """
+        all_tests_passed = True
+        
+        for namespace, gateway_info in gateway_to_customer_mapping.items():
+            logger.info(f"Testing reverse connectivity from gateway namespace {namespace}")
+            
+            get_pod_cmd = f"kubectl get pods -n {namespace} -l app=target -o jsonpath='{{.items[0].metadata.name}}'"
+            result = self.command_runner.run_command(get_pod_cmd)
+            
+            if not result['success'] or not result['stdout']:
+                logger.error(f"Failed to get gateway pod in namespace {namespace}")
+                all_tests_passed = False
+                continue
+                
+            gateway_pod = result['stdout'].strip()
+            logger.info(f"Testing from gateway pod: {gateway_pod}")
+            
+            for device in gateway_info['devices']:
+                device_ip = device['ip']
+                expected_response = device['expected_response']
+                
+                logger.info(f"Testing connectivity from {gateway_pod} to device {device_ip}")
+                
+                # Test ping connectivity first
+                ping_cmd = f"kubectl exec -n {namespace} {gateway_pod} -c dp -- ping -c 3 -W 5 {device_ip}"
+                ping_result = self.command_runner.run_command(ping_cmd, timeout=timeout)
+                
+                if ping_result['success']:
+                    logger.info(f"  ✓ Ping to {device_ip} successful")
+                else:
+                    logger.warning(f"  ✗ Ping to {device_ip} failed: {ping_result['stderr']}")
+                    all_tests_passed = False
+                
+                # Test HTTP connectivity
+                responses = []
+                for i in range(num_requests):
+                    http_cmd = f"kubectl exec -n {namespace} {gateway_pod} -c dp -- curl -s --connect-timeout 10 http://{device_ip}:8080"
+                    http_result = self.command_runner.run_command(http_cmd, timeout=timeout)
+                    
+                    if http_result['success'] and http_result['stdout']:
+                        responses.append(http_result['stdout'].strip())
+                        logger.info(f"  HTTP Request {i+1}: {http_result['stdout'].strip()}")
+                    else:
+                        logger.warning(f"  HTTP Request {i+1}: Failed - {http_result['stderr']}")
+                
+                # Validate HTTP responses
+                if len(responses) == 0:
+                    logger.error(f"No successful HTTP responses from {gateway_pod} to {device_ip}")
+                    all_tests_passed = False
+                    continue
+                
+                # Check if responses match expected
+                valid_responses = [r for r in responses if expected_response in r]
+                if len(valid_responses) == 0:
+                    logger.error(f"No valid HTTP responses from {gateway_pod} to {device_ip}. Got: {responses}, Expected: {expected_response}")
+                    all_tests_passed = False
+                    continue
+                
+                logger.info(f"✓ Gateway pod {gateway_pod} successfully connected to device {device_ip}")
+        
+        return all_tests_passed

@@ -231,7 +231,46 @@ spec:
         )
         
         assert connectivity_success, "Connectivity tests failed for some devices"
-       
+        
+        # Test reverse connectivity from gateway pods to customer devices
+        logger.info("Testing reverse connectivity from gateway pods to customer devices...")
+        
+        gateway_to_customer_mapping = {
+            'ns1': {
+                'devices': [
+                    {'ip': '192.168.11.1', 'expected_response': 'Hello from 192.168.11.1!'},
+                    {'ip': '192.168.11.2', 'expected_response': 'Hello from 192.168.11.2!'},
+                    {'ip': '192.168.12.1', 'expected_response': 'Hello from 192.168.12.1!'},
+                    {'ip': '192.168.12.2', 'expected_response': 'Hello from 192.168.12.2!'}
+                ]
+            },
+            'ns2': {
+                'devices': [
+                    {'ip': '192.168.21.1', 'expected_response': 'Hello from 192.168.21.1!'},
+                    {'ip': '192.168.22.1', 'expected_response': 'Hello from 192.168.22.1!'},
+                    {'ip': '192.168.23.1', 'expected_response': 'Hello from 192.168.23.1!'}
+                ]
+            },
+            'ns3': {
+                'devices': [
+                    {'ip': '192.168.31.1', 'expected_response': 'Hello from 192.168.31.1!'}
+                ]
+            },
+            'ns4': {
+                'devices': [
+                    {'ip': '192.168.41.1', 'expected_response': 'Hello from 192.168.41.1!'}
+                ]
+            }
+        }
+        
+        reverse_connectivity_success = self.framework.connectivity_tester.test_gateway_to_device_connectivity(
+            gateway_to_customer_mapping,
+            num_requests=2,
+            timeout=15
+        )
+        
+        assert reverse_connectivity_success, "Reverse connectivity tests failed for some gateway-device pairs"
+        
         # Additional validation: Check Traffic Director status
         logger.info("Checking Traffic Director CR status...")
         status_cmd = "kubectl get trafficdirector td-all-gateways -n opsramp-sdn -o yaml"
