@@ -45,3 +45,5 @@ logs/
 # Test coverage
 .coverage
 htmlcov/
+
+.config/

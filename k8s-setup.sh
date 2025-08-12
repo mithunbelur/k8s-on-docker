@@ -52,8 +52,16 @@ kubeadm config images pull
 
 systemctl enable --now kubelet
 
-# If the role is control-plane, initialize the cluster
+ If the role is control-plane, initialize the cluster
 if [ "$ROLE" == "control-plane" ]; then
+
+    echo "kubeadm reset and cleanup"
+
+    kubeadm reset -f
+    rm -rf /etc/cni/net.d/*
+    ip link delete cni0
+    ip link delete flannel.1
+
     echo "Initializing Kubernetes control plane..."
     kubeadm init --apiserver-advertise-address=$EX0_IP --pod-network-cidr=10.244.0.0/16 > kubeadm-init.log 2>&1
 
@@ -66,7 +74,13 @@ if [ "$ROLE" == "control-plane" ]; then
 
     kubectl taint nodes --all node-role.kubernetes.io/control-plane-
 
-    kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml
+    #kubectl apply -f https://github.com/coreos/flannel/raw/master/Documentation/kube-flannel.yml
+    # Needs manual creation of namespace to avoid helm error
+    kubectl create ns kube-flannel
+    kubectl label --overwrite ns kube-flannel pod-security.kubernetes.io/enforce=privileged
+
+    helm repo add flannel https://flannel-io.github.io/flannel/
+    helm install flannel --set podCidr="10.244.0.0/16" --namespace kube-flannel flannel/flannel
 
     #kubectl apply -f https://docs.projectcalico.org/manifests/calico.yaml
 

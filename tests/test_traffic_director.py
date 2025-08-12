@@ -26,8 +26,8 @@ class TestTrafficDirector:
         request.cls.framework = HelmTestFramework(debug=debug_enabled)
         
         # Cleanup before all tests
-        #request.cls.framework.cleanup_helm_release()
-        #request.cls.framework.cleanup_gateway_releases()
+        request.cls.framework.cleanup_helm_release()
+        request.cls.framework.cleanup_gateway_releases()
         
         yield
         
@@ -867,7 +867,7 @@ spec:
         # Restart all Gateway pods in 4 namespaces to ensure they can handle restarts
         logger.info("Restarting all Gateway pods in 4 namespaces to ensure they can handle restarts...")
         for namespace in ['ns1', 'ns2', 'ns3', 'ns4']:
-            restart_cmd = f"kubectl rollout restart deployment -n {namespace} target-dep"
+            restart_cmd = f"kubectl delete pod -n {namespace} -l app=target"
             result = self.framework.run_command(restart_cmd)
             assert result['success'], f"Failed to restart Gateway pods in namespace {namespace}. Error: {result['stderr']}"
             logger.info(f"✓ Gateway pods in namespace {namespace} restarted successfully") 
@@ -875,7 +875,7 @@ spec:
         # Wait for all Gateway pods to be ready after restarts
         for namespace in ['ns1', 'ns2', 'ns3', 'ns4']:
             logger.info("Waiting for all Gateway pods to be ready after restarts...")
-            all_pods_ready = self.framework.wait_for_pods_ready(self.framework.namespace, timeout=60)
+            all_pods_ready = self.framework.wait_for_pods_ready(namespace, timeout=60)
             assert all_pods_ready, "All Gateway pods should be running after restarts"
         
         logger.info("✓ All Gateway pods restarted successfully and are ready")
@@ -913,4 +913,3 @@ spec:
             self.framework.run_command(cleanup_cmd)
         
         logger.info("✓ All Traffic Director CRs cleaned up")
-
