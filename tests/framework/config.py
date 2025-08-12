@@ -34,7 +34,3 @@ GATEWAY_CONFIGS = [
 def is_debug_enabled() -> bool:
     """Check if debug mode is enabled via environment variables."""
     return os.environ.get('TEST_DEBUG', '').lower() in ['true', '1', 'yes']
-
-def get_log_file() -> str:
-    """Get log file path from environment variables."""
-    return os.environ.get('TEST_LOG_FILE')

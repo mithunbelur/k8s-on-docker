@@ -3,10 +3,11 @@ Command execution utilities for the test framework.
 """
 
 import subprocess
-import logging
 from typing import Dict
 
-logger = logging.getLogger(__name__)
+from .logger import get_logger
+
+logger = get_logger()
 
 class CommandRunner:
     """Utility class for running shell commands."""

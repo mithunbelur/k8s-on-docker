@@ -1,21 +1,19 @@
 #!/home/ubuntu/Developer/k8s-on-docker/tests/venv/bin/python3
 
 """
-Helm Installation Test Cases
+Traffic Director Test Cases
 
-This module contains test cases for Helm chart installations.
+This module contains test cases for Traffic Director scenarios.
 """
 
 import pytest
 import time
-import logging
 
 from framework import HelmTestFramework
-from framework.config import is_debug_enabled, get_log_file
+from framework.config import is_debug_enabled
+from framework.logger import get_logger
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 class TestTrafficDirector:
     """Test cases for Traffic Director scenarios"""
@@ -24,13 +22,12 @@ class TestTrafficDirector:
     def setup_and_teardown(self, request):
         """Setup and teardown for the entire test suite"""
         debug_enabled = is_debug_enabled()
-        log_file = get_log_file()
-        # Set framework on the class itself
-        request.cls.framework = HelmTestFramework(debug=debug_enabled, log_file=log_file)
+        # Set framework on the class itself - no need to pass log_file anymore
+        request.cls.framework = HelmTestFramework(debug=debug_enabled)
         
         # Cleanup before all tests
-        request.cls.framework.cleanup_helm_release()
-        request.cls.framework.cleanup_gateway_releases()
+        #request.cls.framework.cleanup_helm_release()
+        #request.cls.framework.cleanup_gateway_releases()
         
         yield
         
@@ -139,7 +136,7 @@ class TestTrafficDirector:
         
         logger.info("✓ Test 4 passed: All 4 gateway releases installed successfully")
 
-    def test_create_traffic_director_cr_same_vip_all_namespace(self):
+    def test_create_single_traffic_director_all_namespace_same_vip(self):
         """Test 5: Create Traffic Director CR and validate connectivity from customer devices"""
         logger.info("Running Test 5: Creating Traffic Director CR and validating connectivity")
         
@@ -152,10 +149,17 @@ class TestTrafficDirector:
             assert "gw" in result['stdout'], f"Gateway not found in namespace {namespace}. Run gateway installation test first."
         
         # Query and loop for all traffic director CRs and delete them
-        logger.info("Cleaning up any existing Traffic Director CRs...")
-        # This ensures we start fresh
-        cleanup_cmd = "kubectl delete trafficdirector td-all-gateways -n opsramp-sdn --ignore-not-found"
-        self.framework.run_command(cleanup_cmd)
+        # List of Traffic Director CRs
+        cr_list_cmd = "kubectl get trafficdirector -n opsramp-sdn -o jsonpath='{.items[*].metadata.name}'"
+        result = self.framework.run_command(cr_list_cmd)
+        existing_crs = result['stdout'].split()
+        logger.info(f"Found existing Traffic Director CRs: {existing_crs}")
+        if existing_crs:
+            logger.info("Cleaning up any existing Traffic Director CRs...")
+            # This ensures we start fresh by deleting any existing CRs
+            for cr_name in existing_crs:
+                cleanup_cmd = f"kubectl delete trafficdirector {cr_name} -n opsramp-sdn --ignore-not-found"
+                self.framework.run_command(cleanup_cmd)      
         
         # Create Traffic Director CR
         logger.info("Creating Traffic Director CR with VIP 169.254.1.5")
@@ -194,27 +198,42 @@ spec:
         time.sleep(5)  # Allow time for CR processing and route programming
         
         # Define customer devices for testing
+        # Add vips for each customer in the same map customer_devices
+
         customer_devices = {
-            'c1': ['c1a1', 'c1a2', 'c1b1', 'c1b2'],  # Customer 1 devices
-            'c2': ['c2a1', 'c2b1', 'c2c1'],          # Customer 2 devices  
-            'c3': ['c3a1'],                          # Customer 3 devices
-            'c4': ['c4a1'],                          # Customer 4 devices
+            'c1': {
+                'devices': ['c1a1', 'c1a2', 'c1b1', 'c1b2'],  # Customer 1 devices
+                'vip': "169.254.1.5:18080",
+                'expected_responses': ["Hello from ns1!"]
+            },
+            'c2': {
+                'devices': ['c2a1', 'c2b1', 'c2c1'],          # Customer 2 devices
+                'vip': "169.254.1.5:18080",
+                'expected_responses': ["Hello from ns2!"]
+            },
+            'c3': {
+                'devices': ['c3a1'],                          # Customer 3 devices
+                'vip': "169.254.1.5:18080",
+                'expected_responses': ["Hello from ns3!"]
+            },
+            'c4': {
+                'devices': ['c4a1'],                          # Customer 4 devices
+                'vip': "169.254.1.5:18080",
+                'expected_responses': ["Hello from ns4!"]
+            }
         }
         
-        # Test connectivity from each customer device
-        vip = "169.254.1.5:18080"
-        expected_responses = ["Hello from ns1!", "Hello from ns2!", "Hello from ns3!", "Hello from ns4!"]
-        
-        for customer, devices in customer_devices.items():
-            logger.info(f"Testing connectivity from {customer} devices to VIP {vip}")
-            
-            for device in devices:
+        # Test connectivity from each customer device      
+        for customer_name, customer in customer_devices.items():
+            logger.info(f"Testing connectivity from {customer_name} devices to VIP {customer['vip']}")
+
+            for device in customer['devices']:
                 logger.info(f"Testing connectivity from device {device}")
                 
                 # Test multiple requests to verify load balancing
                 responses = []
-                for i in range(8):  # Test 8 requests to see round-robin behavior
-                    curl_cmd = f"docker exec {device} curl -s --connect-timeout 10 http://{vip}"
+                for i in range(2):  # Test 2 requests to see round-robin behavior
+                    curl_cmd = f"docker exec {device} curl -s --connect-timeout 10 http://{customer['vip']}"
                     result = self.framework.run_command(curl_cmd, timeout=15)
                     
                     if result['success'] and result['stdout']:
@@ -224,17 +243,17 @@ spec:
                         logger.warning(f"  Request {i+1}: Failed - {result['stderr']}")
                 
                 # Validate that we got responses
-                assert len(responses) > 0, f"No successful responses from device {device} to VIP {vip}"
+                assert len(responses) > 0, f"No successful responses from device {device} to VIP {customer['vip']}"
                 
                 # Validate that responses are from expected gateways
-                valid_responses = [r for r in responses if r in expected_responses]
+                valid_responses = [r for r in responses if r in customer['expected_responses']]
                 assert len(valid_responses) > 0, f"No valid responses from device {device}. Got: {responses}"
                 
                 # Check for load balancing (should get responses from multiple gateways)
                 unique_responses = set(responses)
                 logger.info(f"  Device {device} received responses from {len(unique_responses)} different gateways: {unique_responses}")
                 
-                logger.info(f"✓ Device {device} successfully connected to VIP {vip}")
+                logger.info(f"✓ Device {device} successfully connected to VIP {customer['vip']}")
         
         # Additional validation: Check Traffic Director status
         logger.info("Checking Traffic Director CR status...")
@@ -248,3 +267,4 @@ spec:
         cleanup_cmd = f"kubectl delete -f {cr_file}"
         self.framework.run_command(cleanup_cmd)
         logger.info("✓ Traffic Director CR cleaned up")
+

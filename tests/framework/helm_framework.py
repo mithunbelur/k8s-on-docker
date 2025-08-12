@@ -4,13 +4,13 @@ Main Helm test framework class.
 
 import time
 import json
-import logging
 from typing import Dict
 
 from .config import DEFAULT_NAMESPACE, DEFAULT_CHART_NAME, DEFAULT_CHART_URL, DEFAULT_CHART_VERSION, GATEWAY_CONFIGS
 from .command_runner import CommandRunner
+from .logger import get_logger
 
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 class HelmTestFramework:
     """Test framework for Helm chart installations"""
@@ -24,15 +24,6 @@ class HelmTestFramework:
         
         # Initialize command runner
         self.command_runner = CommandRunner(debug=debug)
-        
-        # Setup file logging if log_file is specified
-        if log_file:
-            file_handler = logging.FileHandler(log_file)
-            file_handler.setLevel(logging.INFO)
-            formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-            file_handler.setFormatter(formatter)
-            logger.addHandler(file_handler)
-            logger.info(f"Logging to file: {log_file}")
     
     def run_command(self, cmd: str, capture_output: bool = True, timeout: int = 60) -> Dict:
         """Run a shell command and return result."""
