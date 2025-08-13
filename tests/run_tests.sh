@@ -39,7 +39,7 @@ fi
 
 # Run all tests
 echo "Running all Helm installation tests..."
-python3 test_framework.py
+python3 test_framework.py $1
 
 echo "Tests completed!"
 

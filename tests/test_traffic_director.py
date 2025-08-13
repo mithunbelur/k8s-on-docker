@@ -8,6 +8,9 @@ This module contains test cases for Traffic Director scenarios.
 
 import pytest
 import time
+import subprocess
+import os
+import signal
 
 from framework import HelmTestFramework
 from framework.config import is_debug_enabled
@@ -25,11 +28,71 @@ class TestTrafficDirector:
         # Set framework on the class itself - no need to pass log_file anymore
         request.cls.framework = HelmTestFramework(debug=debug_enabled)
         
+        # Start route-updater.py in background before all tests
+        route_updater_path = "./route-updater.py"
+        if os.path.exists(route_updater_path):
+            logger.info("Starting route-updater.py in background...")
+            try:
+                # Create log directory for route-updater
+                os.makedirs("/var/log/route-updater", exist_ok=True)
+                
+                # Use the virtual environment's Python interpreter
+                venv_python = "./venv/bin/python3"
+                if not os.path.exists(venv_python):
+                    logger.warning(f"Virtual environment python not found at {venv_python}, using system python3")
+                    python_cmd = "python3"
+                else:
+                    python_cmd = venv_python
+                
+                request.cls.route_updater_process = subprocess.Popen(
+                    [python_cmd, route_updater_path],
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    preexec_fn=os.setsid  # Create new process group
+                )
+                logger.info(f"Route updater started with PID: {request.cls.route_updater_process.pid} using {python_cmd}")
+                
+                # Wait a moment and check if process is still running
+                time.sleep(3)
+                poll_result = request.cls.route_updater_process.poll()
+                
+                if poll_result is not None:
+                    # Process has exited, capture the error
+                    stdout, stderr = request.cls.route_updater_process.communicate()
+                    logger.error(f"Route updater exited immediately with code {poll_result}")
+                    logger.error(f"STDOUT: {stdout.decode()}")
+                    logger.error(f"STDERR: {stderr.decode()}")
+                    request.cls.route_updater_process = None
+                else:
+                    logger.info("Route updater is running successfully")
+                    
+            except Exception as e:
+                logger.warning(f"Failed to start route-updater.py: {e}")
+                request.cls.route_updater_process = None
+        else:
+            logger.warning(f"route-updater.py not found at {route_updater_path}")
+            request.cls.route_updater_process = None
+        
         # Cleanup before all tests
         request.cls.framework.cleanup_helm_release()
         request.cls.framework.cleanup_gateway_releases()
         
         yield
+        
+        # Stop route-updater.py after all tests
+        if hasattr(request.cls, 'route_updater_process') and request.cls.route_updater_process:
+            logger.info("Stopping route-updater.py...")
+            try:
+                # Kill the entire process group to ensure all child processes are terminated
+                os.killpg(os.getpgid(request.cls.route_updater_process.pid), signal.SIGTERM)
+                request.cls.route_updater_process.wait(timeout=5)
+                logger.info("Route updater stopped successfully")
+            except subprocess.TimeoutExpired:
+                logger.warning("Route updater did not stop gracefully, forcing termination...")
+                os.killpg(os.getpgid(request.cls.route_updater_process.pid), signal.SIGKILL)
+                request.cls.route_updater_process.wait()
+            except Exception as e:
+                logger.warning(f"Error stopping route updater: {e}")
         
         # Cleanup after all tests
         request.cls.framework.cleanup_helm_release()
