@@ -26,14 +26,14 @@ class TestTrafficDirector:
         request.cls.framework = HelmTestFramework(debug=debug_enabled)
         
         # Cleanup before all tests
-        #request.cls.framework.cleanup_helm_release()
-        #request.cls.framework.cleanup_gateway_releases()
+        request.cls.framework.cleanup_helm_release()
+        request.cls.framework.cleanup_gateway_releases()
         
         yield
         
         # Cleanup after all tests
-        #request.cls.framework.cleanup_helm_release()
-        #request.cls.framework.cleanup_gateway_releases()
+        request.cls.framework.cleanup_helm_release()
+        request.cls.framework.cleanup_gateway_releases()
     
     def test_install_with_program_aws_route_table_true_no_table(self):
         """Test 1: Install with programAwsRouteTable=true but no awsRouteTable"""
@@ -1006,3 +1006,301 @@ spec:
         self.framework.run_command(cleanup_cmd2)
         
         logger.info("✓ Test Traffic Director CRs cleaned up")
+
+    def test_multiple_traffic_director_same_vip_should_fail(self):
+        """Test 10: Create multiple Traffic Director CRs with same VIP should fail"""
+        logger.info("Running Test 10: Creating multiple Traffic Director CRs with same VIP should fail")
+        
+        # First ensure gateways are installed
+        logger.info("Verifying gateway installations are present...")
+        for gateway in self.framework.gateways:
+            namespace = gateway['namespace']
+            check_cmd = f"helm list -n {namespace} -q"
+            result = self.framework.run_command(check_cmd)
+            assert "gw" in result['stdout'], f"Gateway not found in namespace {namespace}. Run gateway installation test first."
+        
+        # Query and cleanup all existing traffic director CRs
+        logger.info("Cleaning up any existing Traffic Director CRs...")
+        cr_list_cmd = "kubectl get trafficdirector -n opsramp-sdn -o jsonpath='{.items[*].metadata.name}'"
+        result = self.framework.run_command(cr_list_cmd)
+        existing_crs = result['stdout'].split()
+        logger.info(f"Found existing Traffic Director CRs: {existing_crs}")
+        if existing_crs:
+            for cr_name in existing_crs:
+                cleanup_cmd = f"kubectl delete trafficdirector {cr_name} -n opsramp-sdn --ignore-not-found"
+                self.framework.run_command(cleanup_cmd)
+        
+        # Create first Traffic Director CR for ns1 with VIP 169.254.1.1
+        logger.info("Creating first Traffic Director CR for ns1 with VIP 169.254.1.1...")
+        
+        td1_cr_yaml = """
+apiVersion: gateway.sdn.opsramp.com/v1
+kind: TrafficDirector
+metadata:
+  name: td1
+  namespace: opsramp-sdn
+spec:
+  gateways:
+    - namespace: ns1
+      vip: "169.254.1.1"
+"""
+        
+        # Write first CR to file and apply
+        cr1_file = "/tmp/td1-same-vip-test.yaml"
+        with open(cr1_file, 'w') as f:
+            f.write(td1_cr_yaml)
+        
+        apply_cmd1 = f"kubectl apply -f {cr1_file}"
+        result1 = self.framework.run_command(apply_cmd1)
+        assert result1['success'], f"Failed to create first Traffic Director CR td1. Error: {result1['stderr']}"
+        
+        logger.info("✓ First Traffic Director CR (td1) created successfully")
+        
+        # Wait for first TD to be processed
+        time.sleep(2)
+        
+        # Create second Traffic Director CR for ns2 with the same VIP 169.254.1.1
+        logger.info("Creating second Traffic Director CR for ns2 with same VIP 169.254.1.1...")
+        
+        td2_cr_yaml = """
+apiVersion: gateway.sdn.opsramp.com/v1
+kind: TrafficDirector
+metadata:
+  name: td2
+  namespace: opsramp-sdn
+spec:
+  gateways:
+    - namespace: ns2
+      vip: "169.254.1.1"
+"""
+        
+        # Write second CR to file and apply
+        cr2_file = "/tmp/td2-same-vip-test.yaml"
+        with open(cr2_file, 'w') as f:
+            f.write(td2_cr_yaml)
+        
+        apply_cmd2 = f"kubectl apply -f {cr2_file}"
+        result2 = self.framework.run_command(apply_cmd2)
+        
+        # The second CR creation should fail due to admission webhook
+        assert not result2['success'], f"Second Traffic Director CR creation should have failed. Error: {result2['stderr']}"
+        
+        expected_error = "Virtual IP 169.254.1.1 is already in use by another traffic director : opsramp-sdn.td1"
+        error_output = result2['stderr'] + result2['stdout']
+        assert expected_error in error_output, f"Expected error message not found. Got: {error_output}"
+        
+        logger.info(f"✓ Second Traffic Director CR (td2) correctly blocked by admission webhook: {error_output}")
+
+        logger.info("✓ Test 10 passed: Second Traffic Director CR with same VIP correctly failed with expected error")
+        
+        # Cleanup first CR (second CR was never created)
+        logger.info("Cleaning up test Traffic Director CR...")
+        cleanup_cmd1 = f"kubectl delete -f {cr1_file} --ignore-not-found"
+        self.framework.run_command(cleanup_cmd1)
+              
+        logger.info("✓ Test Traffic Director CRs cleaned up")
+
+    def test_traffic_director_update_vip(self):
+        """Test 11: Update Traffic Director CR with different VIPs for each namespace"""
+        logger.info("Running Test 11: Updating Traffic Director CR with different VIPs per namespace")
+
+        # First ensure gateways are installed (dependency on previous test)
+        logger.info("Verifying gateway installations are present...")
+        for gateway in self.framework.gateways:
+            namespace = gateway['namespace']
+            check_cmd = f"helm list -n {namespace} -q"
+            result = self.framework.run_command(check_cmd)
+            assert "gw" in result['stdout'], f"Gateway not found in namespace {namespace}. Run gateway installation test first."
+        
+        # Query and loop for all traffic director CRs and delete them
+        logger.info("Cleaning up any existing Traffic Director CRs...")
+        cr_list_cmd = "kubectl get trafficdirector -n opsramp-sdn -o jsonpath='{.items[*].metadata.name}'"
+        result = self.framework.run_command(cr_list_cmd)
+        existing_crs = result['stdout'].split()
+        logger.info(f"Found existing Traffic Director CRs: {existing_crs}")
+        if existing_crs:
+            for cr_name in existing_crs:
+                cleanup_cmd = f"kubectl delete trafficdirector {cr_name} -n opsramp-sdn --ignore-not-found"
+                self.framework.run_command(cleanup_cmd)
+        
+        # Create Traffic Director CR with different VIPs
+        logger.info("Creating Traffic Director CR with different VIPs per namespace")
+        
+        td_cr_yaml = """
+apiVersion: gateway.sdn.opsramp.com/v1
+kind: TrafficDirector
+metadata:
+  name: td-different-vips
+  namespace: opsramp-sdn
+spec:
+  gateways:
+    - namespace: ns1
+      vip: "169.254.1.1"
+    - namespace: ns2
+      vip: "169.254.1.2"
+    - namespace: ns3
+      vip: "169.254.1.3"
+    - namespace: ns4
+      vip: "169.254.1.4"
+"""
+        
+        # Write CR to temporary file and apply
+        cr_file = "/tmp/td-different-vips-cr.yaml"
+        with open(cr_file, 'w') as f:
+            f.write(td_cr_yaml)
+        
+        apply_cmd = f"kubectl apply -f {cr_file}"
+        result = self.framework.run_command(apply_cmd)
+        assert result['success'], f"Failed to create Traffic Director CR. Error: {result['stderr']}"
+        
+        logger.info("✓ Traffic Director CR created successfully")
+        
+        # Wait for Traffic Director to be ready
+        logger.info("Waiting for Traffic Director to be ready...")
+        time.sleep(5)  # Allow time for CR processing and route programming
+        
+        # Define customer devices with different VIPs for testing
+        customer_devices = {
+            'c1': {
+                'devices': ['c1a1', 'c1a2', 'c1b1', 'c1b2'],  # Customer 1 devices
+                'vip': "169.254.1.1",
+                'http_port': 18080,
+                'udp_port': 9090,
+                'expected_responses': ["Hello from ns1!"]
+            },
+            'c2': {
+                'devices': ['c2a1', 'c2b1', 'c2c1'],          # Customer 2 devices
+                'vip': "169.254.1.2",
+                'http_port': 18080,
+                'udp_port': 9090,
+                'expected_responses': ["Hello from ns2!"]
+            },
+            'c3': {
+                'devices': ['c3a1'],                          # Customer 3 devices
+                'vip': "169.254.1.3",
+                'http_port': 18080,
+                'udp_port': 9090,
+                'expected_responses': ["Hello from ns3!"]
+            },
+            'c4': {
+                'devices': ['c4a1'],                          # Customer 4 devices
+                'vip': "169.254.1.4",
+                'http_port': 18080,
+                'udp_port': 9090,
+                'expected_responses': ["Hello from ns4!"]
+            }
+        }
+        
+        # Test connectivity from each customer device to their specific VIP
+        connectivity_success = self.framework.connectivity_tester.test_device_to_gateway_connectivity(
+            customer_devices, 
+            num_requests=2, 
+            timeout=15
+        )
+        
+        assert connectivity_success, "Connectivity tests failed for some devices"
+        
+        # Test reverse connectivity from gateway pods to customer devices
+        logger.info("Testing reverse connectivity from gateway pods to customer devices...")
+        
+        gateway_to_customer_mapping = {
+            'ns1': {
+                'devices': [
+                    {'ip': '192.168.11.1', 'expected_response': 'Hello from 192.168.11.1!'},
+                    {'ip': '192.168.11.2', 'expected_response': 'Hello from 192.168.11.2!'},
+                    {'ip': '192.168.12.1', 'expected_response': 'Hello from 192.168.12.1!'},
+                    {'ip': '192.168.12.2', 'expected_response': 'Hello from 192.168.12.2!'}
+                ]
+            },
+            'ns2': {
+                'devices': [
+                    {'ip': '192.168.21.1', 'expected_response': 'Hello from 192.168.21.1!'},
+                    {'ip': '192.168.22.1', 'expected_response': 'Hello from 192.168.22.1!'},
+                    {'ip': '192.168.23.1', 'expected_response': 'Hello from 192.168.23.1!'}
+                ]
+            },
+            'ns3': {
+                'devices': [
+                    {'ip': '192.168.31.1', 'expected_response': 'Hello from 192.168.31.1!'}
+                ]
+            },
+            'ns4': {
+                'devices': [
+                    {'ip': '192.168.41.1', 'expected_response': 'Hello from 192.168.41.1!'}
+                ]
+            }
+        }
+        
+        reverse_connectivity_success = self.framework.connectivity_tester.test_gateway_to_device_connectivity(
+            gateway_to_customer_mapping,
+            num_requests=1,
+            timeout=15
+        )
+        
+        assert reverse_connectivity_success, "Reverse connectivity tests failed for some gateway-device pairs"
+
+        td_cr_yaml = """
+apiVersion: gateway.sdn.opsramp.com/v1
+kind: TrafficDirector
+metadata:
+  name: td-different-vips
+  namespace: opsramp-sdn
+spec:
+  gateways:
+    - namespace: ns1
+      vip: "169.254.2.1"
+    - namespace: ns2
+      vip: "169.254.2.2"
+    - namespace: ns3
+      vip: "169.254.2.3"
+    - namespace: ns4
+      vip: "169.254.2.4"
+"""
+        
+        # Write CR to temporary file and apply
+        cr_file = "/tmp/td-different-vips-cr.yaml"
+        with open(cr_file, 'w') as f:
+            f.write(td_cr_yaml)
+        
+        apply_cmd = f"kubectl apply -f {cr_file}"
+        result = self.framework.run_command(apply_cmd)
+        assert result['success'], f"Failed to Update Traffic Director CR. Error: {result['stderr']}"
+
+        logger.info("✓ Traffic Director CR updated successfully")
+
+        # Wait for Traffic Director to be ready
+        logger.info("Waiting for Traffic Director to be ready...")
+        time.sleep(5)  # Allow time for CR processing and route programming
+        
+
+        customer_devices['c1']['vip'] = "169.254.2.1"
+        customer_devices['c2']['vip'] = "169.254.2.2"
+        customer_devices['c3']['vip'] = "169.254.2.3"
+        customer_devices['c4']['vip'] = "169.254.2.4"
+
+        # Re-Test connectivity from each customer device to their specific VIP
+        connectivity_success = self.framework.connectivity_tester.test_device_to_gateway_connectivity(
+            customer_devices, 
+            num_requests=2, 
+            timeout=15
+        )
+        
+        assert connectivity_success, "Connectivity tests failed for some devices after update of Traffic Director CR with different VIPs"
+        
+        # Test reverse connectivity from gateway pods to customer devices
+        logger.info("Testing reverse connectivity from gateway pods to customer devices after Traffic Director CR update...")
+        
+        reverse_connectivity_success = self.framework.connectivity_tester.test_gateway_to_device_connectivity(
+            gateway_to_customer_mapping,
+            num_requests=1,
+            timeout=15
+        )
+        
+        assert reverse_connectivity_success, "Reverse connectivity tests failed for some gateway-device pairs after update of Traffic Director CR with different VIPs"
+
+        logger.info("✓ Test 11 passed: Traffic Director CR by updating different VIPs and all connectivity tests passed")
+      
+        # Cleanup the CR
+        cleanup_cmd = f"kubectl delete -f {cr_file}"
+        self.framework.run_command(cleanup_cmd)
+        logger.info("✓ Traffic Director CR cleaned up")
