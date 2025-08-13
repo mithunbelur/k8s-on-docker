@@ -6,6 +6,16 @@ This project creates a Kubernetes cluster using Docker containers with custom ne
 
 The lab environment consists of client devices and a Kubernetes cluster all interconnected through a simulated ISP network topology. This setup allows for realistic testing of network policies, service discovery, and inter-node communication patterns within a containerized infrastructure.
 
+## Prerequisites
+
+### EC2 Instance Requirements
+
+- **AMI**: Ubuntu 24.04 
+- **CPU**: 16 vCPUs
+- **Memory**: 32 GB RAM
+- **Storage**: 100 GB EBS (gp3 recommended)
+- **Security Group**: Allow SSH (22) for login.
+
 ## 1. EC2 Preparation Script
 
 Run the preparation script to download necessary packages, setup Docker registry, and build required images:

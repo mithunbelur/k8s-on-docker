@@ -52,7 +52,7 @@ kubeadm config images pull
 
 systemctl enable --now kubelet
 
- If the role is control-plane, initialize the cluster
+#If the role is control-plane, initialize the cluster
 if [ "$ROLE" == "control-plane" ]; then
 
     echo "kubeadm reset and cleanup"
